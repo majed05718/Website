@@ -1,7 +1,8 @@
-
+'use client';
 
 import { createContext, useContext, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+
 
 interface SupabaseContextType {
   supabase: typeof supabase;
