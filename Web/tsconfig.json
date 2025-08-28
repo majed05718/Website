@@ -1,4 +1,4 @@
-// web/tsconfig.json (محدث مع paths)
+// web/tsconfig.json (مع paths للـ @/)
 {
   "compilerOptions": {
     "target": "ES2020",
