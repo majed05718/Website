@@ -1,4 +1,4 @@
-// web/src/app/page.tsx (محدث مع status check)
+// web/src/app/page.tsx (مع Supabase working)
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -9,7 +9,6 @@ export default function HomePage() {
   const [dbStatus, setDbStatus] = useState<'loading' | 'online' | 'offline'>('loading');
 
   useEffect(() => {
-    // Check API health
     const checkApiHealth = async () => {
       try {
         const apiUrl = process.env.NEXT_PUBLIC_API_URL;
@@ -24,7 +23,6 @@ export default function HomePage() {
       }
     };
 
-    // Check DB connection
     const checkDbHealth = async () => {
       try {
         const { error } = await supabase.from('offices').select('count', { count: 'exact', head: true });
@@ -93,7 +91,6 @@ export default function HomePage() {
           </button>
         </div>
 
-        {/* System Status */}
         <div className="bg-white p-6 rounded-lg shadow-md">
           <h3 className="font-semibold text-lg mb-4">حالة النظام</h3>
           <div className="grid md:grid-cols-2 gap-4 text-sm">
@@ -114,6 +111,7 @@ export default function HomePage() {
 
         <div className="mt-4 text-sm text-gray-500">
           <p>مدعوم بـ Next.js 14 و Supabase</p>
+          <p>Day 1 - Project Foundation</p>
         </div>
       </div>
     </div>
