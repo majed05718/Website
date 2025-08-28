@@ -1,6 +1,4 @@
 
-// web/src/providers/supabase-provider.tsx
-'use client';
 
 import { createContext, useContext, useState } from 'react';
 import { supabase } from '@/lib/supabase';
