@@ -1,0 +1,167 @@
+#!/bin/bash
+# setup.sh - Initial project setup script
+
+set -e
+
+echo "🚀 Setting up Property Management System..."
+
+# Create directory structure
+echo "📁 Creating directory structure..."
+mkdir -p web api infra docs
+mkdir -p web/src/{app,components,lib,types,providers}
+mkdir -p api/src/{health,middleware,interceptors,filters}
+
+# Frontend setup
+echo "🎨 Setting up frontend (Next.js)..."
+cd web
+npm init -y
+npm install next@14.1.0 react@^18.2.0 react-dom@^18.2.0
+npm install @radix-ui/react-slot class-variance-authority clsx lucide-react tailwind-merge tailwindcss-animate
+npm install @supabase/supabase-js posthog-js @sentry/nextjs
+npm install -D typescript @types/node @types/react @types/react-dom autoprefixer postcss tailwindcss
+npm install -D eslint eslint-config-next @typescript-eslint/eslint-plugin @typescript-eslint/parser
+npm install -D prettier husky lint-staged
+
+# Initialize Tailwind CSS
+npx tailwindcss init -p
+
+echo "📦 Frontend dependencies installed!"
+cd ..
+
+# Backend setup
+echo "🔧 Setting up backend (NestJS)..."
+cd api
+npm init -y
+npm install @nestjs/common @nestjs/core @nestjs/platform-express @nestjs/config
+npm install @nestjs/jwt @nestjs/passport @nestjs/throttler @nestjs/swagger
+npm install @supabase/supabase-js passport passport-jwt class-validator class-transformer
+npm install helmet compression multer sharp axios reflect-metadata rxjs @sentry/node
+npm install -D @nestjs/cli @nestjs/schematics @nestjs/testing
+npm install -D @types/express @types/jest @types/node @types/supertest @types/multer @types/passport-jwt
+npm install -D @typescript-eslint/eslint-plugin @typescript-eslint/parser eslint eslint-config-prettier eslint-plugin-prettier
+npm install -D jest prettier source-map-support supertest ts-jest ts-loader ts-node tsconfig-paths typescript
+npm install -D husky lint-staged
+
+echo "🔧 Backend dependencies installed!"
+cd ..
+
+# Initialize Git and Husky
+echo "📝 Setting up Git and pre-commit hooks..."
+git init
+git branch -M main
+cd web && npx husky install && cd ..
+cd api && npx husky install && cd ..
+
+# Create environment files
+echo "🔐 Creating environment configuration files..."
+cp web/.env.local.example web/.env.local
+cp api/.env.example api/.env
+
+echo "✅ Setup completed!"
+echo ""
+echo "📋 Next steps:"
+echo "1. Configure your environment variables in .env files"
+echo "2. Set up Supabase project and get your keys"
+echo "3. Configure Sentry and PostHog accounts"
+echo "4. Run 'npm run dev' in both web/ and api/ directories"
+echo ""
+echo "🔗 Helpful commands:"
+echo "  Frontend dev: cd web && npm run dev"
+echo "  Backend dev: cd api && npm run start:dev"
+echo "  Run tests: npm run test"
+echo ""
+
+# deployment.yml - GitHub Actions workflow
+# .github/workflows/deployment.yml
+cat << 'EOF' > deployment.yml
+name: Deploy to Vercel
+
+on:
+  push:
+    branches: [main, staging]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: |
+            web/package-lock.json
+            api/package-lock.json
+      
+      - name: Install Frontend Dependencies
+        run: cd web && npm ci
+      
+      - name: Install Backend Dependencies
+        run: cd api && npm ci
+      
+      - name: Run Frontend Linting
+        run: cd web && npm run lint
+      
+      - name: Run Backend Linting
+        run: cd api && npm run lint
+      
+      - name: Run Frontend Type Check
+        run: cd web && npm run type-check
+      
+      - name: Run Backend Tests
+        run: cd api && npm run test
+        env:
+          NODE_ENV: test
+      
+      - name: Build Frontend
+        run: cd web && npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+      
+      - name: Build Backend
+        run: cd api && npm run build
+
+  deploy-frontend:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          working-directory: ./web
+          vercel-args: '--prod'
+
+  deploy-api:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_API_PROJECT_ID }}
+          working-directory: ./api
+          vercel-args: '--prod'
+EOF
+
+echo "🎯 Deployment workflow created!"
+echo "📋 Remember to add the following secrets to GitHub:"
+echo "  - VERCEL_TOKEN"
+echo "  - VERCEL_ORG_ID" 
+echo "  - VERCEL_PROJECT_ID"
+echo "  - VERCEL_API_PROJECT_ID"
+echo "  - NEXT_PUBLIC_SUPABASE_URL"
+echo "  - NEXT_PUBLIC_SUPABASE_ANON_KEY"
+echo "  - NEXT_PUBLIC_API_URL"
