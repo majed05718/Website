@@ -1,5 +1,4 @@
-// web/src/providers/index.tsx (تصحيح PostHog Provider)
-'use client';
+
 
 import { createContext, useContext } from 'react';
 import { SupabaseProvider } from './supabase-provider';
