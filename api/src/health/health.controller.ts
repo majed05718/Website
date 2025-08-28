@@ -1,4 +1,4 @@
-// api/src/health/health.controller.ts (محدث)
+
 import { Controller, Get } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
