@@ -1,31 +1,27 @@
-// web/next.config.js
-const { withSentryConfig } = require('@sentry/nextjs');
 
+// web/next.config.js (إزالة experimental.appDir)
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    appDir: true,
-  },
-  images: {
-    domains: ['your-project.supabase.co'],
-  },
   env: {
     BUILD_TIME: new Date().toISOString(),
   },
-};
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'X-Frame-Options',
+            value: 'DENY',
+          },
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff',
+          },
+        ],
+      },
+    ];
+  },
+}
 
-const sentryWebpackPluginOptions = {
-  silent: true,
-  org: process.env.SENTRY_ORG,
-  project: process.env.SENTRY_PROJECT,
-};
-
-const sentryOptions = {
-  widenClientFileUpload: true,
-  transpileClientSDK: true,
-  tunnelRoute: '/monitoring',
-  hideSourceMaps: true,
-  disableLogger: true,
-};
-
-module.exports = withSentryConfig(nextConfig, sentryWebpackPluginOptions, sentryOptions);
+module.exports = nextConfig
