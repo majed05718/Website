@@ -1,4 +1,4 @@
-// api/src/health/health.controller.ts
+// api/src/health/health.controller.ts (محدث)
 import { Controller, Get } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
@@ -46,12 +46,3 @@ export class HealthController {
     };
   }
 }
-
-// api/src/health/health.module.ts
-import { Module } from '@nestjs/common';
-import { HealthController } from './health.controller';
-
-@Module({
-  controllers: [HealthController],
-})
-export class HealthModule {}
