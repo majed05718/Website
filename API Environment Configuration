@@ -1,0 +1,36 @@
+# api/.env.example
+NODE_ENV=development
+PORT=3001
+API_VERSION=v1
+
+# Supabase Configuration
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_KEY=your-service-key
+
+# JWT Configuration  
+JWT_SECRET=your-super-secret-jwt-key
+JWT_EXPIRES_IN=7d
+
+# OpenAI Configuration
+OPENAI_API_KEY=your-openai-key
+
+# WhatsApp API Configuration
+WHATSAPP_API_URL=https://graph.facebook.com/v18.0
+WHATSAPP_ACCESS_TOKEN=your-whatsapp-token
+
+# n8n Integration
+N8N_WEBHOOK_URL=http://localhost:5678/webhook
+
+# Monitoring
+SENTRY_DSN=your-sentry-dsn
+SENTRY_ORG=your-org
+SENTRY_PROJECT=your-project
+
+# File Upload
+MAX_FILE_SIZE=10485760
+ALLOWED_FILE_TYPES=image/jpeg,image/png,image/webp,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+
+# Rate Limiting
+RATE_LIMIT_TTL=60
+RATE_LIMIT_MAX=100
