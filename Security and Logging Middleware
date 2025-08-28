@@ -1,0 +1,149 @@
+// api/src/middleware/logging.middleware.ts
+import { Injectable, NestMiddleware, Logger } from '@nestjs/common';
+import { Request, Response, NextFunction } from 'express';
+
+@Injectable()
+export class LoggingMiddleware implements NestMiddleware {
+  private logger = new Logger('HTTP');
+
+  use(request: Request, response: Response, next: NextFunction): void {
+    const { ip, method, originalUrl } = request;
+    const userAgent = request.get('User-Agent') || '';
+    const startTime = Date.now();
+
+    response.on('close', () => {
+      const { statusCode } = response;
+      const contentLength = response.get('Content-Length');
+      const responseTime = Date.now() - startTime;
+
+      // Filter out sensitive information from logs
+      const sanitizedUrl = this.sanitizeUrl(originalUrl);
+      
+      this.logger.log(
+        `${method} ${sanitizedUrl} ${statusCode} ${contentLength || 0}b - ${responseTime}ms - ${ip} ${userAgent}`
+      );
+    });
+
+    next();
+  }
+
+  private sanitizeUrl(url: string): string {
+    // Remove sensitive query parameters
+    const sensitiveParams = ['token', 'key', 'secret', 'password', 'api_key'];
+    let sanitized = url;
+    
+    sensitiveParams.forEach(param => {
+      const regex = new RegExp(`([?&])${param}=[^&]*`, 'gi');
+      sanitized = sanitized.replace(regex, `$1${param}=[REDACTED]`);
+    });
+    
+    return sanitized;
+  }
+}
+
+// api/src/interceptors/secrets.interceptor.ts
+import {
+  Injectable,
+  NestInterceptor,
+  ExecutionContext,
+  CallHandler,
+} from '@nestjs/common';
+import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
+
+@Injectable()
+export class SecretsInterceptor implements NestInterceptor {
+  private readonly sensitiveFields = [
+    'password',
+    'token',
+    'secret',
+    'key',
+    'api_key',
+    'access_token',
+    'refresh_token',
+    'jwt',
+    'apikey',
+  ];
+
+  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+    return next.handle().pipe(
+      map(data => this.sanitizeResponse(data))
+    );
+  }
+
+  private sanitizeResponse(data: any): any {
+    if (!data || typeof data !== 'object') {
+      return data;
+    }
+
+    if (Array.isArray(data)) {
+      return data.map(item => this.sanitizeResponse(item));
+    }
+
+    const sanitized = { ...data };
+    
+    Object.keys(sanitized).forEach(key => {
+      const lowercaseKey = key.toLowerCase();
+      
+      if (this.sensitiveFields.some(field => lowercaseKey.includes(field))) {
+        sanitized[key] = '[REDACTED]';
+      } else if (typeof sanitized[key] === 'object' && sanitized[key] !== null) {
+        sanitized[key] = this.sanitizeResponse(sanitized[key]);
+      }
+    });
+
+    return sanitized;
+  }
+}
+
+// api/src/filters/all-exceptions.filter.ts
+import {
+  ExceptionFilter,
+  Catch,
+  ArgumentsHost,
+  HttpException,
+  HttpStatus,
+  Logger,
+} from '@nestjs/common';
+import { Request, Response } from 'express';
+import * as Sentry from '@sentry/node';
+
+@Catch()
+export class AllExceptionsFilter implements ExceptionFilter {
+  private readonly logger = new Logger(AllExceptionsFilter.name);
+
+  catch(exception: unknown, host: ArgumentsHost): void {
+    const ctx = host.switchToHttp();
+    const response = ctx.getResponse<Response>();
+    const request = ctx.getRequest<Request>();
+
+    const status = exception instanceof HttpException 
+      ? exception.getStatus()
+      : HttpStatus.INTERNAL_SERVER_ERROR;
+
+    const message = exception instanceof HttpException
+      ? exception.message
+      : 'Internal server error';
+
+    // Log error (without sensitive data)
+    this.logger.error(
+      `HTTP ${status} Error: ${message} - ${request.method} ${request.url}`,
+      exception instanceof Error ? exception.stack : undefined
+    );
+
+    // Report to Sentry (production only)
+    if (process.env.NODE_ENV === 'production' && status >= 500) {
+      Sentry.captureException(exception);
+    }
+
+    const errorResponse = {
+      statusCode: status,
+      timestamp: new Date().toISOString(),
+      path: request.url,
+      method: request.method,
+      message: status >= 500 ? 'Internal server error' : message,
+    };
+
+    response.status(status).json(errorResponse);
+  }
+}
