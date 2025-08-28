@@ -1,4 +1,4 @@
-// web/src/app/layout.tsx
+// web/src/app/layout.tsx (صحيح مع Providers)
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import { Providers } from '@/providers';
@@ -7,8 +7,8 @@ import './globals.css';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Property Management System',
-  description: 'Comprehensive property management solution',
+  title: 'نظام إدارة العقارات',
+  description: 'منصة شاملة لإدارة العقارات والمستأجرين',
 };
 
 export default function RootLayout({
@@ -26,4 +26,3 @@ export default function RootLayout({
     </html>
   );
 }
-
