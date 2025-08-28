@@ -1,5 +1,4 @@
-// web/src/providers/posthog-provider.tsx (تغيير اسم لتجنب التضارب)
-'use client';
+
 
 import { useEffect } from 'react';
 import posthog from 'posthog-js';
