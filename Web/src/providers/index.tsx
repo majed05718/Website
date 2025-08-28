@@ -1,16 +1,16 @@
-// web/src/providers/index.tsx
+// web/src/providers/index.tsx (تصحيح PostHog Provider)
 'use client';
 
-import { PostHogProvider } from './posthog-provider';
+import { createContext, useContext } from 'react';
 import { SupabaseProvider } from './supabase-provider';
+import { PostHogContextProvider } from './posthog-provider';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <SupabaseProvider>
-      <PostHogProvider>
+      <PostHogContextProvider>
         {children}
-      </PostHogProvider>
+      </PostHogContextProvider>
     </SupabaseProvider>
   );
 }
-
