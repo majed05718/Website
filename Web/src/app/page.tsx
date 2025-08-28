@@ -1,9 +1,10 @@
-
+'use client';
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 
 export default function HomePage() {
+
   const [apiStatus, setApiStatus] = useState<'loading' | 'online' | 'offline'>('loading');
   const [dbStatus, setDbStatus] = useState<'loading' | 'online' | 'offline'>('loading');
 
