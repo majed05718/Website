@@ -1,5 +1,4 @@
-// web/src/app/page.tsx (مع Supabase working)
-'use client';
+
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
