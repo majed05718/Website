@@ -1,5 +1,4 @@
-
-
+'use client';
 import { createContext, useContext } from 'react';
 import { SupabaseProvider } from './supabase-provider';
 import { PostHogContextProvider } from './posthog-provider';
