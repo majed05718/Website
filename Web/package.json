@@ -1,4 +1,3 @@
-// web/package.json (إضافة posthog-js وsupabase)
 {
   "name": "property-management-web",
   "version": "1.0.0",
