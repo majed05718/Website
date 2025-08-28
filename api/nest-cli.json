@@ -1,4 +1,4 @@
-// api/nest-cli.json
+
 {
   "$schema": "https://json.schemastore.org/nest-cli",
   "collection": "@nestjs/schematics",
