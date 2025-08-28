@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { getSupabaseClient } from '@/lib/supabase';
 
 export default function HomePage() {
 
@@ -25,6 +25,7 @@ export default function HomePage() {
 
     const checkDbHealth = async () => {
       try {
+        const supabase = getSupabaseClient();
         const { error } = await supabase.from('offices').select('count', { count: 'exact', head: true });
         setDbStatus(error ? 'offline' : 'online');
       } catch (error) {
