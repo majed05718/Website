@@ -1,5 +1,4 @@
 
-// web/next.config.js (إزالة experimental.appDir)
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   env: {
@@ -11,12 +10,12 @@ const nextConfig = {
         source: '/(.*)',
         headers: [
           {
-            key: 'X-Frame-Options',
-            value: 'DENY',
-          },
-          {
             key: 'X-Content-Type-Options',
             value: 'nosniff',
+          },
+          {
+            key: 'Cache-Control',
+            value: 'no-cache, no-store, must-revalidate',
           },
         ],
       },

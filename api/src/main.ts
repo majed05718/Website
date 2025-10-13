@@ -18,10 +18,18 @@ async function bootstrap() {
   app.use(compression());
   
   // CORS configuration
+  const allowedOrigins = process.env.NODE_ENV === 'production' && process.env.FRONTEND_URL
+    ? [process.env.FRONTEND_URL]
+    : ['http://localhost:3000', 'http://localhost:5000'];
+  
   app.enableCors({
-    origin: process.env.NODE_ENV === 'production' 
-      ? [process.env.FRONTEND_URL] 
-      : ['http://localhost:3000'],
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin) || origin.includes('.replit.dev') || origin.includes('.repl.co')) {
+        callback(null, true);
+      } else {
+        callback(null, false);
+      }
+    },
     credentials: true,
   });
 
