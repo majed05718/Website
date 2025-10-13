@@ -74,11 +74,15 @@ import { MaintenanceRequest } from './maintenance/maintenance-request.entity';
         const isProd = config.get<string>('NODE_ENV') === 'production';
         const url = config.get<string>('DATABASE_URL');
         if (url) {
+          const isSupabasePooler = url.includes('pooler.supabase.com');
+          const sslConfig = isSupabasePooler || config.get<string>('PG_SSL', 'false') === 'true'
+            ? { rejectUnauthorized: false }
+            : false;
           return {
             type: 'postgres',
             url,
             autoLoadEntities: true,
-            ssl: config.get<string>('PG_SSL', 'false') === 'true' ? { rejectUnauthorized: false } : false,
+            ssl: sslConfig,
             synchronize: !isProd,
           } as any;
         }
