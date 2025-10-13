@@ -4,6 +4,9 @@ const nextConfig = {
   env: {
     BUILD_TIME: new Date().toISOString(),
   },
+  allowedDevOrigins: process.env.REPLIT_DEV_DOMAIN 
+    ? [`https://${process.env.REPLIT_DEV_DOMAIN}`, 'http://127.0.0.1']
+    : ['http://127.0.0.1'],
   async headers() {
     return [
       {
