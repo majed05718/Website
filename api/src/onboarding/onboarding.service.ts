@@ -1,21 +1,19 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { SupabaseService } from '../supabase/supabase.service';
 import slugify from 'slugify';
-import { Office } from '../entities/office.entity';
-import { UserPermission } from '../entities/user-permission.entity';
-import { createClient } from '@supabase/supabase-js';
 
 @Injectable()
 export class OnboardingService {
-  constructor(
-    @InjectRepository(Office) private readonly officeRepo: Repository<Office>,
-    @InjectRepository(UserPermission) private readonly permRepo: Repository<UserPermission>,
-  ) {}
+  constructor(private readonly supabase: SupabaseService) {}
 
   async verifyCodeAvailable(code: string) {
-    const exists = await this.officeRepo.exists({ where: { officeCode: code } as any });
-    return { available: !exists };
+    const { data } = await this.supabase.getClient()
+      .from('offices')
+      .select('id')
+      .eq('office_code', code)
+      .single();
+
+    return { available: !data };
   }
 
   private generateOfficeCode(name: string): string {
@@ -29,33 +27,36 @@ export class OnboardingService {
     const available = await this.verifyCodeAvailable(code);
     if (!available.available) throw new BadRequestException('رمز المكتب مستخدم');
 
-    const office = this.officeRepo.create({
-      officeCode: code,
-      officeName: body.office_name,
-      maxProperties: 1000,
-      maxUsers: 50,
-      subscriptionPlan: 'free',
-      whatsappPhoneNumber: body.whatsapp_number ?? null,
-    });
-    const savedOffice = await this.officeRepo.save(office);
+    const { data: savedOffice, error: officeError } = await this.supabase.getClient()
+      .from('offices')
+      .insert({
+        office_code: code,
+        office_name: body.office_name,
+        max_properties: 1000,
+        max_users: 50,
+        subscription_plan: 'free',
+        whatsapp_phone_number: body.whatsapp_number ?? null,
+      })
+      .select()
+      .single();
 
-    // إنشاء مدير في user_permissions
-    const manager = this.permRepo.create({
-      officeId: savedOffice.id,
-      userId: 'pending',
-      role: 'manager',
-      status: 'active',
-      permissions: { all: true },
-    });
-    await this.permRepo.save(manager);
+    if (officeError) throw officeError;
 
-    // Supabase Auth
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!supabaseUrl || !serviceKey) throw new BadRequestException('إعدادات Supabase غير متوفرة');
-    const client = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
+    const { data: manager, error: managerError } = await this.supabase.getClient()
+      .from('user_permissions')
+      .insert({
+        office_id: savedOffice.id,
+        user_id: 'pending',
+        role: 'manager',
+        status: 'active',
+        permissions: { all: true },
+      })
+      .select()
+      .single();
 
-    const { data, error } = await client.auth.admin.createUser({
+    if (managerError) throw managerError;
+
+    const { data, error } = await this.supabase.getClient().auth.admin.createUser({
       email: body.manager_email,
       email_confirm: true,
       user_metadata: { name: body.manager_name, phone: body.manager_phone },
@@ -63,28 +64,38 @@ export class OnboardingService {
     });
     if (error) throw new BadRequestException('تعذر إنشاء المستخدم: ' + error.message);
 
-    // تحديث userId الحقيقي
-    manager.userId = data.user?.id || manager.userId;
-    await this.permRepo.save(manager);
+    await this.supabase.getClient()
+      .from('user_permissions')
+      .update({ user_id: data.user?.id || manager.user_id })
+      .eq('id', manager.id);
 
-    return { office_id: savedOffice.id, office_code: savedOffice.officeCode, access_token: null };
+    return { office_id: savedOffice.id, office_code: savedOffice.office_code, access_token: null };
   }
 
   async complete(body: { office_id: string; whatsapp_config?: any; subscription_plan?: string }) {
-    const office = await this.officeRepo.findOne({ where: { id: body.office_id } });
+    const { data: office } = await this.supabase.getClient()
+      .from('offices')
+      .select('*')
+      .eq('id', body.office_id)
+      .single();
+
     if (!office) throw new BadRequestException('المكتب غير موجود');
 
-    if (body.subscription_plan) office.subscriptionPlan = body.subscription_plan;
+    const updates: any = { onboarding_completed: true };
+    if (body.subscription_plan) updates.subscription_plan = body.subscription_plan;
     if (body.whatsapp_config?.access_token) {
-      office.whatsappApiToken = encrypt(body.whatsapp_config.access_token);
+      updates.whatsapp_api_token = encrypt(body.whatsapp_config.access_token);
     }
-    if (body.whatsapp_config?.api_base_url) office.whatsappApiUrl = body.whatsapp_config.api_base_url;
-    if (body.whatsapp_config?.phone_number) office.whatsappPhoneNumber = body.whatsapp_config.phone_number;
-    if (body.whatsapp_config?.phone_number_id) office.whatsappPhoneNumberId = body.whatsapp_config.phone_number_id;
+    if (body.whatsapp_config?.api_base_url) updates.whatsapp_api_url = body.whatsapp_config.api_base_url;
+    if (body.whatsapp_config?.phone_number) updates.whatsapp_phone_number = body.whatsapp_config.phone_number;
+    if (body.whatsapp_config?.phone_number_id) updates.whatsapp_phone_number_id = body.whatsapp_config.phone_number_id;
 
-    office.onboardingCompleted = true;
+    const { error } = await this.supabase.getClient()
+      .from('offices')
+      .update(updates)
+      .eq('id', body.office_id);
 
-    await this.officeRepo.save(office);
+    if (error) throw error;
     return { success: true };
   }
 }

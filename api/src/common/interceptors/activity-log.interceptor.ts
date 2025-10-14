@@ -1,16 +1,12 @@
 import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
 import { Observable } from 'rxjs';
 import { tap, catchError } from 'rxjs/operators';
-import { Repository } from 'typeorm';
-import { ActivityLog } from '../../entities/activity-log.entity';
+import { SupabaseService } from '../../supabase/supabase.service';
 
-// إنترسيبتور لتسجيل الأنشطة (يستثني GET و /health)
 @Injectable()
 export class ActivityLogInterceptor implements NestInterceptor {
   constructor(
-    @InjectRepository(ActivityLog)
-    private readonly activityRepo: Repository<ActivityLog>,
+    private readonly supabaseService: SupabaseService,
   ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
@@ -30,38 +26,41 @@ export class ActivityLogInterceptor implements NestInterceptor {
     const start = Date.now();
 
     const baseLog = {
-      officeId: request?.user?.office_id ?? null,
-      userPhone: request?.user?.phone ?? null,
-      userRole: request?.user?.role ?? null,
-      activityType: `${method} ${path}`,
-      entityType: request?.params?.entity || null,
-      entityId: request?.params?.id || null,
-      requestData: safeJson(request?.body),
-    } as Partial<ActivityLog>;
+      office_id: request?.user?.office_id ?? null,
+      user_phone: request?.user?.phone ?? null,
+      user_role: request?.user?.role ?? null,
+      activity_type: `${method} ${path}`,
+      entity_type: request?.params?.entity || null,
+      entity_id: request?.params?.id || null,
+      request_data: safeJson(request?.body),
+    };
 
     return next.handle().pipe(
       tap(async (data) => {
         const processingTime = Date.now() - start;
         try {
-          await this.activityRepo.insert({
-            ...baseLog,
-            responseData: safeJson(data),
-            status: String(response.statusCode || 200),
-            processingTime,
-          });
+          await this.supabaseService.getClient()
+            .from('activity_logs')
+            .insert({
+              ...baseLog,
+              response_data: safeJson(data),
+              status: String(response.statusCode || 200),
+              processing_time: processingTime,
+            });
         } catch (_) {
-          // نتجاهل أخطاء التسجيل حتى لا تؤثر على الاستجابة
         }
       }),
       catchError(async (err) => {
         const processingTime = Date.now() - start;
         try {
-          await this.activityRepo.insert({
-            ...baseLog,
-            responseData: safeJson({ message: err?.message, name: err?.name }),
-            status: String(err?.status || 500),
-            processingTime,
-          });
+          await this.supabaseService.getClient()
+            .from('activity_logs')
+            .insert({
+              ...baseLog,
+              response_data: safeJson({ message: err?.message, name: err?.name }),
+              status: String(err?.status || 500),
+              processing_time: processingTime,
+            });
         } catch (_) {}
         throw err;
       }) as any,

@@ -1,19 +1,15 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { ActivityLog } from '../../entities/activity-log.entity';
+import { SupabaseService } from '../../supabase/supabase.service';
 
 @Injectable()
 export class N8nService {
-  constructor(
-    @InjectRepository(ActivityLog) private readonly activityRepo: Repository<ActivityLog>,
-  ) {}
+  constructor(private readonly supabase: SupabaseService) {}
 
   async triggerWebhook(url: string, payload: any): Promise<{ ok: boolean } | null> {
     if (!url) return null;
 
     let attempt = 0;
-    let delay = 500; // ms
+    let delay = 500;
     let lastError: any = null;
 
     while (attempt < 3) {
@@ -26,18 +22,20 @@ export class N8nService {
         const ok = res.ok;
 
         try {
-          await this.activityRepo.insert({
-            officeId: payload?.office_id ?? null,
-            userPhone: null,
-            userRole: null,
-            activityType: 'n8n_webhook',
-            entityType: 'maintenance',
-            entityId: payload?.request_id ?? null,
-            requestData: payload,
-            responseData: { status: res.status },
-            status: String(res.status),
-            processingTime: null,
-          } as any);
+          await this.supabase.getClient()
+            .from('activity_logs')
+            .insert({
+              office_id: payload?.office_id ?? null,
+              user_phone: null,
+              user_role: null,
+              activity_type: 'n8n_webhook',
+              entity_type: 'maintenance',
+              entity_id: payload?.request_id ?? null,
+              request_data: payload,
+              response_data: { status: res.status },
+              status: String(res.status),
+              processing_time: null,
+            });
         } catch (_) {}
 
         if (ok) return { ok: true };
@@ -52,18 +50,20 @@ export class N8nService {
     }
 
     try {
-      await this.activityRepo.insert({
-        officeId: payload?.office_id ?? null,
-        userPhone: null,
-        userRole: null,
-        activityType: 'n8n_webhook_error',
-        entityType: 'maintenance',
-        entityId: payload?.request_id ?? null,
-        requestData: payload,
-        responseData: { error: String(lastError) },
-        status: 'error',
-        processingTime: null,
-      } as any);
+      await this.supabase.getClient()
+        .from('activity_logs')
+        .insert({
+          office_id: payload?.office_id ?? null,
+          user_phone: null,
+          user_role: null,
+          activity_type: 'n8n_webhook_error',
+          entity_type: 'maintenance',
+          entity_id: payload?.request_id ?? null,
+          request_data: payload,
+          response_data: { error: String(lastError) },
+          status: 'error',
+          processing_time: null,
+        });
     } catch (_) {}
 
     return { ok: false };

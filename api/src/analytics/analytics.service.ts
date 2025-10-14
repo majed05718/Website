@@ -1,12 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan } from 'typeorm';
-import { Property } from '../properties/properties.entity';
-import { RentalPayment } from '../payments/rental-payment.entity';
-import { MaintenanceRequest } from '../maintenance/maintenance-request.entity';
-import { FinancialAnalytics } from './entities/financial-analytics.entity';
-import { KpiTracking } from './entities/kpi-tracking.entity';
-import { StaffPerformance } from './entities/staff-performance.entity';
+import { SupabaseService } from '../supabase/supabase.service';
 
 interface CacheEntry { data: any; expiresAt: number }
 
@@ -15,12 +8,7 @@ export class AnalyticsService {
   private cache = new Map<string, CacheEntry>();
 
   constructor(
-    @InjectRepository(Property) private readonly propRepo: Repository<Property>,
-    @InjectRepository(RentalPayment) private readonly payRepo: Repository<RentalPayment>,
-    @InjectRepository(MaintenanceRequest) private readonly mntRepo: Repository<MaintenanceRequest>,
-    @InjectRepository(FinancialAnalytics) private readonly finRepo: Repository<FinancialAnalytics>,
-    @InjectRepository(KpiTracking) private readonly kpiRepo: Repository<KpiTracking>,
-    @InjectRepository(StaffPerformance) private readonly staffRepo: Repository<StaffPerformance>,
+    private readonly supabaseService: SupabaseService,
   ) {}
 
   private getCache<T>(key: string): T | null {
@@ -36,40 +24,24 @@ export class AnalyticsService {
     const cached = this.getCache<any>(key);
     if (cached) return cached;
 
-    const [propsByStatus, activeContracts, monthlyRevenue, pendingPayments, mntByStatus, recentActivity] = await Promise.all([
-      this.propRepo.createQueryBuilder('p')
-        .select('p.status', 'status')
-        .addSelect('COUNT(*)', 'count')
-        .where('p.officeId = :officeId', { officeId })
-        .groupBy('p.status')
-        .getRawMany(),
-      // العقود النشطة - نفترض أن جدول العقود rental_contracts موجود ويحتوي status='active'
-      this.payRepo.query(`SELECT COUNT(DISTINCT contract_id) AS active FROM rental_payments WHERE office_id = $1 AND status != 'cancelled'`, [officeId]),
-      this.finRepo.createQueryBuilder('f')
-        .select('SUM(CAST(f.revenue as numeric))', 'revenue')
-        .where('f.officeId = :officeId', { officeId })
-        .andWhere("f.reportPeriod >= to_char(now() - interval '30 days', 'YYYY-MM')")
-        .getRawOne(),
-      this.payRepo.createQueryBuilder('rp')
-        .select('COUNT(*)', 'count')
-        .where('rp.officeId = :officeId AND rp.status = :status', { officeId, status: 'pending' })
-        .getRawOne(),
-      this.mntRepo.createQueryBuilder('m')
-        .select('m.status', 'status')
-        .addSelect('COUNT(*)', 'count')
-        .where('m.officeId = :officeId', { officeId })
-        .groupBy('m.status')
-        .getRawMany(),
-      this.mntRepo.find({ where: { officeId }, order: { createdAt: 'DESC' }, take: 10 }),
+    const supabase = this.supabaseService.getClient();
+
+    const [propsByStatusRes, activeContractsRes, monthlyRevenueRes, pendingPaymentsRes, mntByStatusRes, recentActivityRes] = await Promise.all([
+      supabase.rpc('get_properties_by_status', { p_office_id: officeId }),
+      supabase.rpc('get_active_contracts_count', { p_office_id: officeId }),
+      supabase.rpc('get_monthly_revenue', { p_office_id: officeId }),
+      supabase.from('rental_payments').select('*', { count: 'exact', head: true }).eq('office_id', officeId).eq('status', 'pending'),
+      supabase.rpc('get_maintenance_by_status', { p_office_id: officeId }),
+      supabase.from('maintenance_requests').select('*').eq('office_id', officeId).order('created_at', { ascending: false }).limit(10),
     ]);
 
     const data = {
-      propertiesByStatus: propsByStatus,
-      activeContracts: Number(activeContracts?.[0]?.active ?? 0),
-      monthlyRevenue: Number(monthlyRevenue?.revenue ?? 0),
-      pendingPayments: Number(pendingPayments?.count ?? 0),
-      maintenanceByStatus: mntByStatus,
-      recentMaintenance: recentActivity,
+      propertiesByStatus: propsByStatusRes.data || [],
+      activeContracts: Number(activeContractsRes.data ?? 0),
+      monthlyRevenue: Number(monthlyRevenueRes.data ?? 0),
+      pendingPayments: Number(pendingPaymentsRes.count ?? 0),
+      maintenanceByStatus: mntByStatusRes.data || [],
+      recentMaintenance: recentActivityRes.data || [],
     };
 
     this.setCache(key, data, 5 * 60 * 1000);
@@ -77,68 +49,65 @@ export class AnalyticsService {
   }
 
   async propertiesBreakdown(officeId: string) {
-    const byType = await this.propRepo.createQueryBuilder('p')
-      .select('p.propertyType', 'type')
-      .addSelect('COUNT(*)', 'count')
-      .where('p.officeId = :officeId', { officeId })
-      .groupBy('p.propertyType')
-      .getRawMany();
+    const supabase = this.supabaseService.getClient();
 
-    const byStatus = await this.propRepo.createQueryBuilder('p')
-      .select('p.status', 'status')
-      .addSelect('COUNT(*)', 'count')
-      .where('p.officeId = :officeId', { officeId })
-      .groupBy('p.status')
-      .getRawMany();
+    const [byTypeRes, byStatusRes, byCityRes, priceAggRes, countsRes] = await Promise.all([
+      supabase.rpc('get_properties_by_type', { p_office_id: officeId }),
+      supabase.rpc('get_properties_by_status', { p_office_id: officeId }),
+      supabase.rpc('get_properties_by_city', { p_office_id: officeId }),
+      supabase.rpc('get_properties_price_aggregate', { p_office_id: officeId }),
+      supabase.rpc('get_properties_occupancy_counts', { p_office_id: officeId }),
+    ]);
 
-    const byCity = await this.propRepo.createQueryBuilder('p')
-      .select('p.locationCity', 'city')
-      .addSelect('COUNT(*)', 'count')
-      .where('p.officeId = :officeId', { officeId })
-      .groupBy('p.locationCity')
-      .getRawMany();
+    const byType = byTypeRes.data || [];
+    const byStatus = byStatusRes.data || [];
+    const byCity = byCityRes.data || [];
+    const priceAgg = priceAggRes.data?.[0] || { avgprice: 0, totalprice: 0 };
+    const counts = countsRes.data?.[0] || { available: 0, total: 0 };
+    const occupancy = counts.total ? (1 - Number(counts.available) / Number(counts.total)) : 0;
 
-    const priceAgg = await this.propRepo.createQueryBuilder('p')
-      .select('AVG(CAST(p.price as numeric))', 'avgPrice')
-      .addSelect('SUM(CAST(p.price as numeric))', 'totalPrice')
-      .where('p.officeId = :officeId', { officeId })
-      .getRawOne();
-
-    // نسبة الإشغال: نفترض status='available' مقابل غيره
-    const counts = await this.propRepo.createQueryBuilder('p')
-      .select(`SUM(CASE WHEN p.status = 'available' THEN 1 ELSE 0 END)`, 'available')
-      .addSelect('COUNT(*)', 'total')
-      .where('p.officeId = :officeId', { officeId })
-      .getRawOne();
-    const occupancy = counts?.total ? (1 - Number(counts.available) / Number(counts.total)) : 0;
-
-    return { byType, byStatus, byCity, avgPrice: Number(priceAgg?.avgPrice ?? 0), totalPrice: Number(priceAgg?.totalPrice ?? 0), occupancyRate: occupancy };
+    return { byType, byStatus, byCity, avgPrice: Number(priceAgg.avgprice ?? 0), totalPrice: Number(priceAgg.totalprice ?? 0), occupancyRate: occupancy };
   }
 
   async financials(officeId: string, reportPeriod?: string) {
-    const qb = this.finRepo.createQueryBuilder('f').where('f.officeId = :officeId', { officeId });
-    if (reportPeriod) qb.andWhere('f.reportPeriod = :rp', { rp: reportPeriod });
-    const rows = await qb.orderBy('f.reportPeriod', 'ASC').getMany();
+    const supabase = this.supabaseService.getClient();
+    let query = supabase.from('financial_analytics').select('*').eq('office_id', officeId);
+    
+    if (reportPeriod) {
+      query = query.eq('report_period', reportPeriod);
+    }
+    
+    const { data: rows } = await query.order('report_period', { ascending: true });
+    
     const trends = {
-      revenue: rows.map(r => Number(r.revenue)),
-      expenses: rows.map(r => Number(r.expenses)),
-      profit: rows.map(r => Number(r.profit)),
-      periods: rows.map(r => r.reportPeriod),
+      revenue: (rows || []).map(r => Number(r.revenue)),
+      expenses: (rows || []).map(r => Number(r.expenses)),
+      profit: (rows || []).map(r => Number(r.profit)),
+      periods: (rows || []).map(r => r.report_period),
     };
-    return { rows, trends };
+    return { rows: rows || [], trends };
   }
 
   async kpis(officeId: string) {
-    const rows = await this.kpiRepo.find({ where: { officeId } });
-    const data = rows.map(r => ({ name: r.kpiName, current: Number(r.currentValue), target: Number(r.targetValue), period: r.reportPeriod }));
+    const { data: rows } = await this.supabaseService.getClient()
+      .from('kpi_tracking')
+      .select('*')
+      .eq('office_id', officeId);
+    
+    const data = (rows || []).map(r => ({ name: r.kpi_name, current: Number(r.current_value), target: Number(r.target_value), period: r.report_period }));
     return { items: data };
   }
 
   async staffPerformance(officeId: string, staffPhone?: string, reportPeriod?: string) {
-    const qb = this.staffRepo.createQueryBuilder('s').where('s.officeId = :officeId', { officeId });
-    if (staffPhone) qb.andWhere('s.staffPhone = :sp', { sp: staffPhone });
-    if (reportPeriod) qb.andWhere('s.reportPeriod = :rp', { rp: reportPeriod });
-    const rows = await qb.orderBy('s.revenueGenerated', 'DESC').getMany();
-    return { items: rows };
+    let query = this.supabaseService.getClient()
+      .from('staff_performance')
+      .select('*')
+      .eq('office_id', officeId);
+    
+    if (staffPhone) query = query.eq('staff_phone', staffPhone);
+    if (reportPeriod) query = query.eq('report_period', reportPeriod);
+    
+    const { data: rows } = await query.order('revenue_generated', { ascending: false });
+    return { items: rows || [] };
   }
 }

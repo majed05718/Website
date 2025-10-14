@@ -1,8 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Like, Repository } from 'typeorm';
-import { MaintenanceRequest } from './maintenance-request.entity';
-import { Property } from '../properties/properties.entity';
+import { SupabaseService } from '../supabase/supabase.service';
 import { CreateMaintenanceDto } from './dto/create-maintenance.dto';
 import { PublicCreateMaintenanceDto } from './dto/public-create-maintenance.dto';
 import { UpdateMaintenanceDto } from './dto/update-maintenance.dto';
@@ -12,60 +9,77 @@ import { N8nService } from '../integrations/n8n/n8n.service';
 @Injectable()
 export class MaintenanceService {
   constructor(
-    @InjectRepository(MaintenanceRequest) private readonly repo: Repository<MaintenanceRequest>,
-    @InjectRepository(Property) private readonly propRepo: Repository<Property>,
+    private readonly supabase: SupabaseService,
     private readonly n8n: N8nService,
   ) {}
 
   async list(officeId: string, filters: any) {
-    const where: any = { officeId };
-    if (filters.status) where.status = filters.status;
-    if (filters.priority) where.priority = filters.priority;
-    if (filters.issue_type) where.issueType = filters.issue_type;
-    if (filters.property_id) where.propertyId = filters.property_id;
-    if (filters.tenant_phone) where.tenantPhone = filters.tenant_phone;
-    if (filters.assigned_technician) where.assignedTechnician = filters.assigned_technician;
+    let query = this.supabase.getClient()
+      .from('maintenance_requests')
+      .select('*, property:properties(*)')
+      .eq('office_id', officeId);
 
-    const items = await this.repo.find({ where, relations: ['property'], order: { createdAt: 'DESC' } });
-    return items;
+    if (filters.status) query = query.eq('status', filters.status);
+    if (filters.priority) query = query.eq('priority', filters.priority);
+    if (filters.issue_type) query = query.eq('issue_type', filters.issue_type);
+    if (filters.property_id) query = query.eq('property_id', filters.property_id);
+    if (filters.tenant_phone) query = query.eq('tenant_phone', filters.tenant_phone);
+    if (filters.assigned_technician) query = query.eq('assigned_technician', filters.assigned_technician);
+
+    query = query.order('created_at', { ascending: false });
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    return data || [];
   }
 
   async getOne(officeId: string, id: string) {
-    const item = await this.repo.findOne({ where: { id, officeId }, relations: ['property'] });
-    if (!item) throw new NotFoundException('سجل الصيانة غير موجود');
-    return item;
+    const { data, error } = await this.supabase.getClient()
+      .from('maintenance_requests')
+      .select('*, property:properties(*)')
+      .eq('id', id)
+      .eq('office_id', officeId)
+      .single();
+
+    if (error || !data) throw new NotFoundException('سجل الصيانة غير موجود');
+    return data;
   }
 
   async createInternal(officeId: string, officeCode: string, userId: string | null, dto: CreateMaintenanceDto) {
     const cleanedPhone = sanitizePhone(dto.tenant_phone);
     const requestNumber = await this.generateRequestNumber(officeCode);
 
-    const entity = this.repo.create({
-      officeId,
-      propertyId: dto.property_id ?? null,
-      tenantPhone: cleanedPhone ?? null,
-      tenantName: dto.tenant_name ?? null,
-      issueType: dto.issue_type,
-      priority: dto.priority,
-      description: dto.description ?? null,
-      beforeImages: dto.before_images ?? null,
-      status: 'new',
-      requestNumber,
-    });
+    const { data: saved, error } = await this.supabase.getClient()
+      .from('maintenance_requests')
+      .insert({
+        office_id: officeId,
+        property_id: dto.property_id ?? null,
+        tenant_phone: cleanedPhone ?? null,
+        tenant_name: dto.tenant_name ?? null,
+        issue_type: dto.issue_type,
+        priority: dto.priority,
+        description: dto.description ?? null,
+        before_images: dto.before_images ?? null,
+        status: 'new',
+        request_number: requestNumber,
+      })
+      .select()
+      .single();
 
-    const saved = await this.repo.save(entity);
+    if (error) throw error;
 
     const payload = {
       request_id: saved.id,
       office_id: officeId,
-      property_id: saved.propertyId,
-      tenant_phone: saved.tenantPhone,
-      tenant_name: saved.tenantName,
-      issue_type: saved.issueType,
+      property_id: saved.property_id,
+      tenant_phone: saved.tenant_phone,
+      tenant_name: saved.tenant_name,
+      issue_type: saved.issue_type,
       priority: saved.priority,
       description: saved.description,
       status: saved.status,
-      created_at: saved.createdAt,
+      created_at: saved.created_at,
     };
     const url = process.env.N8N_MAINTENANCE_WEBHOOK_URL || '';
     await this.n8n.triggerWebhook(url, payload);
@@ -80,32 +94,36 @@ export class MaintenanceService {
     const cleanedPhone = sanitizePhone(dto.tenant_phone);
     const requestNumber = await this.generateRequestNumber(officeCode);
 
-    const entity = this.repo.create({
-      officeId,
-      propertyId: dto.property_id ?? null,
-      tenantPhone: cleanedPhone ?? null,
-      tenantName: dto.tenant_name ?? null,
-      issueType: dto.issue_type,
-      priority: dto.priority,
-      description: dto.description ?? dto.title ?? null,
-      beforeImages: dto.before_images ?? null,
-      status: 'new',
-      requestNumber,
-    });
+    const { data: saved, error } = await this.supabase.getClient()
+      .from('maintenance_requests')
+      .insert({
+        office_id: officeId,
+        property_id: dto.property_id ?? null,
+        tenant_phone: cleanedPhone ?? null,
+        tenant_name: dto.tenant_name ?? null,
+        issue_type: dto.issue_type,
+        priority: dto.priority,
+        description: dto.description ?? dto.title ?? null,
+        before_images: dto.before_images ?? null,
+        status: 'new',
+        request_number: requestNumber,
+      })
+      .select()
+      .single();
 
-    const saved = await this.repo.save(entity);
+    if (error) throw error;
 
     const payload = {
       request_id: saved.id,
       office_id: officeId,
-      property_id: saved.propertyId,
-      tenant_phone: saved.tenantPhone,
-      tenant_name: saved.tenantName,
-      issue_type: saved.issueType,
+      property_id: saved.property_id,
+      tenant_phone: saved.tenant_phone,
+      tenant_name: saved.tenant_name,
+      issue_type: saved.issue_type,
       priority: saved.priority,
       description: saved.description,
       status: saved.status,
-      created_at: saved.createdAt,
+      created_at: saved.created_at,
     };
     const url = process.env.N8N_MAINTENANCE_WEBHOOK_URL || '';
     await this.n8n.triggerWebhook(url, payload);
@@ -121,42 +139,67 @@ export class MaintenanceService {
       throw new BadRequestException('انتقال حالة غير مسموح');
     }
 
-    item.status = nextStatus;
-    item.assignedTechnician = dto.assigned_technician ?? item.assignedTechnician;
-    item.technicianName = dto.technician_name ?? item.technicianName;
-    item.scheduledDate = dto.scheduled_date ? new Date(dto.scheduled_date) : item.scheduledDate;
-    item.estimatedCost = dto.estimated_cost ?? item.estimatedCost;
-    item.actualCost = dto.actual_cost ?? item.actualCost;
-    item.whoPays = dto.who_pays ?? item.whoPays;
-    item.beforeImages = dto.before_images ?? item.beforeImages;
-    item.afterImages = dto.after_images ?? item.afterImages;
-    item.technicianNotes = dto.technician_notes ?? item.technicianNotes;
+    const updates: any = { status: nextStatus };
+    if (dto.assigned_technician) updates.assigned_technician = dto.assigned_technician;
+    if (dto.technician_name) updates.technician_name = dto.technician_name;
+    if (dto.scheduled_date) updates.scheduled_date = new Date(dto.scheduled_date).toISOString();
+    if (dto.estimated_cost) updates.estimated_cost = dto.estimated_cost;
+    if (dto.actual_cost) updates.actual_cost = dto.actual_cost;
+    if (dto.who_pays) updates.who_pays = dto.who_pays;
+    if (dto.before_images) updates.before_images = dto.before_images;
+    if (dto.after_images) updates.after_images = dto.after_images;
+    if (dto.technician_notes) updates.technician_notes = dto.technician_notes;
 
-    const saved = await this.repo.save(item);
+    const { data: saved, error } = await this.supabase.getClient()
+      .from('maintenance_requests')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
     return saved;
   }
 
   async complete(officeId: string, id: string, dto: CompleteMaintenanceDto) {
     const item = await this.getOne(officeId, id);
-    item.status = 'completed';
-    item.completedAt = new Date();
-    item.actualCost = dto.actual_cost;
-    item.afterImages = dto.after_images ?? item.afterImages;
-    item.technicianNotes = dto.technician_notes ?? item.technicianNotes;
-    if (dto.tenant_rating) item.tenantRating = Number(dto.tenant_rating);
-    if (dto.tenant_feedback) item.tenantFeedback = dto.tenant_feedback;
+    
+    const updates: any = {
+      status: 'completed',
+      completed_at: new Date().toISOString(),
+      actual_cost: dto.actual_cost,
+    };
+    if (dto.after_images) updates.after_images = dto.after_images;
+    if (dto.technician_notes) updates.technician_notes = dto.technician_notes;
+    if (dto.tenant_rating) updates.tenant_rating = Number(dto.tenant_rating);
+    if (dto.tenant_feedback) updates.tenant_feedback = dto.tenant_feedback;
 
-    const saved = await this.repo.save(item);
+    const { data: saved, error } = await this.supabase.getClient()
+      .from('maintenance_requests')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
     return saved;
   }
 
   private async generateRequestNumber(officeCode: string): Promise<string> {
     const year = new Date().getFullYear();
     const prefix = `MNT-${officeCode}-${year}-`;
-    const last = await this.repo.find({ where: { requestNumber: Like(`${prefix}%`) }, order: { createdAt: 'DESC' }, take: 1 });
+    
+    const { data: last } = await this.supabase.getClient()
+      .from('maintenance_requests')
+      .select('request_number')
+      .like('request_number', `${prefix}%`)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
     let seq = 1;
-    if (last.length > 0) {
-      const m = last[0].requestNumber.match(/(\d+)$/);
+    if (last) {
+      const m = last.request_number.match(/(\d+)$/);
       if (m) seq = Number(m[1]) + 1;
     }
     return `${prefix}${String(seq).padStart(4, '0')}`;
@@ -173,5 +216,5 @@ function isValidTransition(current: string, next: string): boolean {
   const ci = order.indexOf(current);
   const ni = order.indexOf(next);
   if (ci === -1 || ni === -1) return false;
-  return ni >= ci; // يسمح بالتقدم للأمام فقط
+  return ni >= ci;
 }

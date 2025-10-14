@@ -1,16 +1,12 @@
 import { ArgumentsHost, Catch, HttpException, HttpStatus } from '@nestjs/common';
 import { BaseExceptionFilter } from '@nestjs/core';
-import { InjectRepository } from '@nestjs/typeorm';
 import { Request, Response } from 'express';
-import { Repository } from 'typeorm';
-import { ActivityLog } from '../../entities/activity-log.entity';
+import { SupabaseService } from '../../supabase/supabase.service';
 
-// فلتر استثناءات عام لتوحيد صيغة الأخطاء وتسجيلها
 @Catch()
 export class GlobalExceptionFilter extends BaseExceptionFilter {
   constructor(
-    @InjectRepository(ActivityLog)
-    private readonly activityRepo: Repository<ActivityLog>,
+    private readonly supabaseService: SupabaseService,
   ) {
     super();
   }
@@ -38,24 +34,26 @@ export class GlobalExceptionFilter extends BaseExceptionFilter {
     } as const;
 
     try {
-      const log: Partial<ActivityLog> = {
-        officeId: (request as any)?.user?.office_id ?? null,
-        userPhone: (request as any)?.user?.phone ?? null,
-        userRole: (request as any)?.user?.role ?? null,
-        activityType: `ERROR ${request.method} ${request.url}`,
-        entityType: (request as any)?.params?.entity || null,
-        entityId: (request as any)?.params?.id || null,
-        requestData: safeJson((request as any)?.body),
-        responseData: safeJson(payload),
-        status: String(status),
-        processingTime: null,
-      };
-      await this.activityRepo.insert(log);
+      await this.supabaseService.getClient()
+        .from('activity_logs')
+        .insert({
+          office_id: (request as any)?.user?.office_id ?? null,
+          user_phone: (request as any)?.user?.phone ?? null,
+          user_role: (request as any)?.user?.role ?? null,
+          activity_type: `ERROR ${request.method} ${request.url}`,
+          entity_type: (request as any)?.params?.entity || null,
+          entity_id: (request as any)?.params?.id || null,
+          request_data: safeJson((request as any)?.body),
+          response_data: safeJson(payload),
+          status: String(status),
+          processing_time: null,
+        });
     } catch (_) {
-      // لا نعرقل مسار الخطأ إذا فشل تسجيل النشاط
     }
 
-    response.status(status).json(payload);
+    if (!response.headersSent) {
+      response.status(status).json(payload);
+    }
   }
 }
 

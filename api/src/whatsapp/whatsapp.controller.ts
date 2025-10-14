@@ -2,10 +2,7 @@ import { BadRequestException, Body, Controller, ForbiddenException, Get, Post, Q
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Conversation } from './conversation.entity';
-import { Office } from '../entities/office.entity';
+import { SupabaseService } from '../supabase/supabase.service';
 import { MetaApiService } from './meta-api.service';
 
 @ApiTags('WhatsApp')
@@ -14,8 +11,7 @@ import { MetaApiService } from './meta-api.service';
 @UseGuards(RolesGuard)
 export class WhatsAppController {
   constructor(
-    @InjectRepository(Conversation) private readonly convRepo: Repository<Conversation>,
-    @InjectRepository(Office) private readonly officeRepo: Repository<Office>,
+    private readonly supabaseService: SupabaseService,
     private readonly meta: MetaApiService,
   ) {}
 
@@ -49,22 +45,27 @@ export class WhatsAppController {
     const text = messages?.[0]?.text?.body ?? null;
     const phoneNumberId = value?.metadata?.phone_number_id;
 
-    // تحديد المكتب عبر رقم الهاتف المعرف
-    let office: Office | null = null;
+    let officeId = 'unknown';
     if (phoneNumberId) {
-      office = await this.officeRepo.findOne({ where: { whatsappPhoneNumberId: phoneNumberId } });
+      const { data: office } = await this.supabaseService.getClient()
+        .from('offices')
+        .select('id')
+        .eq('whatsapp_phone_number_id', phoneNumberId)
+        .single();
+      if (office) officeId = office.id;
     }
 
-    const conversation = this.convRepo.create({
-      officeId: office?.id ?? 'unknown',
-      userPhone: fromPhone ?? null,
-      messageText: text,
-      direction: 'incoming',
-      messageType: messages?.[0]?.type ?? null,
-      sessionId: value?.contacts?.[0]?.wa_id ?? null,
-      conversationContext: payload,
-    });
-    await this.convRepo.save(conversation);
+    await this.supabaseService.getClient()
+      .from('conversations')
+      .insert({
+        office_id: officeId,
+        user_phone: fromPhone ?? null,
+        message_text: text,
+        direction: 'incoming',
+        message_type: messages?.[0]?.type ?? null,
+        session_id: value?.contacts?.[0]?.wa_id ?? null,
+        conversation_context: payload,
+      });
 
     return { ok: true };
   }
@@ -74,22 +75,30 @@ export class WhatsAppController {
   async connect(@Req() req: any, @Body() body: { phone_number_id: string; access_token: string; api_base_url?: string; phone_display?: string }) {
     const officeId = req?.user?.office_id;
     if (!officeId) throw new BadRequestException('office_id مفقود');
-    const office = await this.officeRepo.findOne({ where: { id: officeId } });
-    if (!office) throw new BadRequestException('المكتب غير موجود');
+    
+    const { data: office, error } = await this.supabaseService.getClient()
+      .from('offices')
+      .select('*')
+      .eq('id', officeId)
+      .single();
+    
+    if (error || !office) throw new BadRequestException('المكتب غير موجود');
 
     if (!body?.phone_number_id || !body?.access_token) throw new BadRequestException('بيانات غير مكتملة');
 
-    office.whatsappPhoneNumberId = body.phone_number_id;
-    office.whatsappApiToken = encrypt(body.access_token);
-    office.whatsappApiUrl = (body.api_base_url || 'https://graph.facebook.com/v18.0').replace(/\/$/, '');
-    office.whatsappPhoneNumber = body.phone_display ?? office.whatsappPhoneNumber;
+    await this.supabaseService.getClient()
+      .from('offices')
+      .update({
+        whatsapp_phone_number_id: body.phone_number_id,
+        whatsapp_api_token: encrypt(body.access_token),
+        whatsapp_api_url: (body.api_base_url || 'https://graph.facebook.com/v18.0').replace(/\/$/, ''),
+        whatsapp_phone_number: body.phone_display ?? office.whatsapp_phone_number,
+      })
+      .eq('id', officeId);
 
-    await this.officeRepo.save(office);
-
-    // اختبار الإرسال برسالة Template (اختبارية)
     try {
-      await this.meta.sendTemplate(office.id, {
-        to: req?.user?.phone || office.whatsappPhoneNumber || '',
+      await this.meta.sendTemplate(officeId, {
+        to: req?.user?.phone || office.whatsapp_phone_number || '',
         template_name: 'hello_world',
         language: 'en_US',
         components: [],
@@ -109,17 +118,17 @@ export class WhatsAppController {
 
     const res = await this.meta.sendTemplate(officeId, body);
 
-    // تسجيل المحادثة كإرسال
-    const office = await this.officeRepo.findOne({ where: { id: officeId } });
-    await this.convRepo.insert({
-      officeId,
-      userPhone: body.to,
-      messageText: `[TEMPLATE:${body.template_name}]`,
-      direction: 'outgoing',
-      messageType: 'template',
-      sessionId: null,
-      conversationContext: res,
-    } as any);
+    await this.supabaseService.getClient()
+      .from('conversations')
+      .insert({
+        office_id: officeId,
+        user_phone: body.to,
+        message_text: `[TEMPLATE:${body.template_name}]`,
+        direction: 'outgoing',
+        message_type: 'template',
+        session_id: null,
+        conversation_context: res,
+      });
 
     return { message_id: res?.messages?.[0]?.id ?? null };
   }

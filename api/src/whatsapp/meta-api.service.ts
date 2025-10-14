@@ -1,7 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Office } from '../entities/office.entity';
+import { SupabaseService } from '../supabase/supabase.service';
 
 interface SendTemplatePayload {
   to: string;
@@ -15,7 +13,7 @@ export class MetaApiService {
   private templatesCache: Map<string, { data: any; expiresAt: number }> = new Map();
 
   constructor(
-    @InjectRepository(Office) private readonly officeRepo: Repository<Office>,
+    private readonly supabaseService: SupabaseService,
   ) {}
 
   private async requestWithRetry(url: string, options: RequestInit, retries = 3): Promise<Response> {
@@ -38,12 +36,17 @@ export class MetaApiService {
   }
 
   async sendTemplate(officeId: string, payload: SendTemplatePayload) {
-    const office = await this.officeRepo.findOne({ where: { id: officeId } });
-    if (!office?.whatsappApiUrl || !office?.whatsappApiToken || !office?.whatsappPhoneNumberId) {
+    const { data: office, error } = await this.supabaseService.getClient()
+      .from('offices')
+      .select('*')
+      .eq('id', officeId)
+      .single();
+    
+    if (error || !office?.whatsapp_api_url || !office?.whatsapp_api_token || !office?.whatsapp_phone_number_id) {
       throw new Error('إعدادات واتساب غير مكتملة');
     }
 
-    const url = `${office.whatsappApiUrl}/${office.whatsappPhoneNumberId}/messages`;
+    const url = `${office.whatsapp_api_url}/${office.whatsapp_phone_number_id}/messages`;
     const body = {
       messaging_product: 'whatsapp',
       to: payload.to,
@@ -57,7 +60,7 @@ export class MetaApiService {
     const res = await this.requestWithRetry(url, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${decrypt(office.whatsappApiToken)}`,
+        'Authorization': `Bearer ${decrypt(office.whatsapp_api_token)}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),
@@ -66,8 +69,13 @@ export class MetaApiService {
   }
 
   async fetchTemplates(officeId: string) {
-    const office = await this.officeRepo.findOne({ where: { id: officeId } });
-    if (!office?.whatsappApiUrl || !office?.whatsappApiToken || !office?.whatsappPhoneNumberId) {
+    const { data: office, error } = await this.supabaseService.getClient()
+      .from('offices')
+      .select('*')
+      .eq('id', officeId)
+      .single();
+    
+    if (error || !office?.whatsapp_api_url || !office?.whatsapp_api_token || !office?.whatsapp_phone_number_id) {
       throw new Error('إعدادات واتساب غير مكتملة');
     }
 
@@ -76,11 +84,11 @@ export class MetaApiService {
     const now = Date.now();
     if (cached && cached.expiresAt > now) return cached.data;
 
-    const url = `${office.whatsappApiUrl}/${office.whatsappPhoneNumberId}/message_templates`;
+    const url = `${office.whatsapp_api_url}/${office.whatsapp_phone_number_id}/message_templates`;
     const res = await this.requestWithRetry(url, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${decrypt(office.whatsappApiToken)}`,
+        'Authorization': `Bearer ${decrypt(office.whatsapp_api_token)}`,
       },
     });
     const data = await res.json();
