@@ -1,140 +1,174 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Between, FindOptionsWhere, ILike, LessThan, MoreThanOrEqual, Repository } from 'typeorm';
-import { RentalPayment } from './rental-payment.entity';
-import { PaymentAlert } from './payment-alert.entity';
-import { Contract } from './rental.contract.entity';
+import { SupabaseService } from '../supabase/supabase.service';
 import { FilterPaymentsDto } from './dto/filter-payments.dto';
 import { MarkPaidDto } from './dto/mark-paid.dto';
 
 @Injectable()
 export class PaymentsService {
-  constructor(
-    @InjectRepository(RentalPayment) private readonly paymentsRepo: Repository<RentalPayment>,
-    @InjectRepository(PaymentAlert) private readonly alertsRepo: Repository<PaymentAlert>,
-    @InjectRepository(Contract) private readonly contractsRepo: Repository<Contract>,
-  ) {}
+  constructor(private readonly supabase: SupabaseService) {}
 
   async findPayments(officeId: string, filters: FilterPaymentsDto) {
-    const where: FindOptionsWhere<RentalPayment> = { officeId };
-    if (filters.status) where.status = filters.status;
-    if (filters.contract_id) where.contractId = filters.contract_id;
-    if (filters.tenant_phone) where.tenantPhone = filters.tenant_phone;
+    let query = this.supabase.getClient()
+      .from('rental_payments')
+      .select('*, contract:rental_contracts(*)')
+      .eq('office_id', officeId);
 
-    if (filters.due_from && filters.due_to) {
-      (where as any).dueDate = Between(filters.due_from, filters.due_to);
-    } else if (filters.due_from) {
-      (where as any).dueDate = MoreThanOrEqual(filters.due_from);
-    } else if (filters.due_to) {
-      (where as any).dueDate = LessThan(filters.due_to);
-    }
+    if (filters.status) query = query.eq('status', filters.status);
+    if (filters.contract_id) query = query.eq('contract_id', filters.contract_id);
+    if (filters.tenant_phone) query = query.eq('tenant_phone', filters.tenant_phone);
+    if (filters.due_from) query = query.gte('due_date', filters.due_from);
+    if (filters.due_to) query = query.lt('due_date', filters.due_to);
 
-    const items = await this.paymentsRepo.find({
-      where,
-      order: { dueDate: 'ASC' },
-      relations: ['contract'],
-    });
+    query = query.order('due_date', { ascending: true });
 
-    return items;
+    const { data, error } = await query;
+    if (error) throw error;
+
+    return data || [];
   }
 
   async findByContract(officeId: string, contractId: string) {
-    const items = await this.paymentsRepo.find({
-      where: { officeId, contractId },
-      order: { dueDate: 'ASC' },
-      relations: ['contract'],
-    });
-    return items;
+    const { data, error } = await this.supabase.getClient()
+      .from('rental_payments')
+      .select('*, contract:rental_contracts(*)')
+      .eq('office_id', officeId)
+      .eq('contract_id', contractId)
+      .order('due_date', { ascending: true });
+
+    if (error) throw error;
+    return data || [];
   }
 
   async markPaid(officeId: string, id: string, dto: MarkPaidDto) {
-    const payment = await this.paymentsRepo.findOne({ where: { id, officeId }, relations: ['contract'] });
+    const { data: payment } = await this.supabase.getClient()
+      .from('rental_payments')
+      .select('*, contract:rental_contracts(*)')
+      .eq('id', id)
+      .eq('office_id', officeId)
+      .single();
+
     if (!payment) throw new NotFoundException('الدفعة غير موجودة');
     if (payment.status === 'paid') throw new BadRequestException('تم سداد هذه الدفعة مسبقاً');
 
     const contract = payment.contract;
-    const rate = Number(contract?.officeCommissionRate ?? 0) / 100;
+    const rate = Number(contract?.office_commission_rate ?? 0) / 100;
     const amountPaid = Number(dto.amount_paid);
     if (isNaN(amountPaid) || amountPaid <= 0) throw new BadRequestException('قيمة السداد غير صحيحة');
 
     const officeCommission = round2(amountPaid * rate);
     const ownerAmount = round2(amountPaid - officeCommission);
 
-    payment.status = 'paid';
-    payment.paidDate = new Date();
-    payment.amountPaid = amountPaid.toFixed(2);
-    payment.paymentMethod = dto.payment_method ?? null;
-    payment.paymentReference = dto.payment_reference ?? null;
-    payment.officeCommission = officeCommission.toFixed(2);
-    payment.ownerAmount = ownerAmount.toFixed(2);
+    const { data: saved, error } = await this.supabase.getClient()
+      .from('rental_payments')
+      .update({
+        status: 'paid',
+        paid_date: new Date().toISOString(),
+        amount_paid: amountPaid.toFixed(2),
+        payment_method: dto.payment_method ?? null,
+        payment_reference: dto.payment_reference ?? null,
+        office_commission: officeCommission.toFixed(2),
+        owner_amount: ownerAmount.toFixed(2),
+      })
+      .eq('id', id)
+      .select('*, contract:rental_contracts(*)')
+      .single();
 
-    const saved = await this.paymentsRepo.save(payment);
+    if (error) throw error;
 
-    // إلغاء التنبيهات المرتبطة
-    await this.alertsRepo.delete({ paymentId: payment.id } as any);
+    await this.supabase.getClient()
+      .from('payment_alerts')
+      .delete()
+      .eq('payment_id', payment.id);
 
     return saved;
   }
 
   async getOverdue(officeId: string) {
     const today = new Date().toISOString().slice(0, 10);
-    const items = await this.paymentsRepo.find({ where: { officeId, status: 'pending', dueDate: LessThan(today) }, relations: ['contract'] });
+    
+    const { data: items, error } = await this.supabase.getClient()
+      .from('rental_payments')
+      .select('*, contract:rental_contracts(*)')
+      .eq('office_id', officeId)
+      .eq('status', 'pending')
+      .lt('due_date', today);
 
-    // إنشاء/تحديث تنبيهات
-    for (const p of items) {
-      const days = daysBetween(p.dueDate, today);
+    if (error) throw error;
+
+    for (const p of items || []) {
+      const days = daysBetween(p.due_date, today);
       const { alertType, level } = classifyAlert(days);
       if (!alertType) continue;
 
-      const existing = await this.alertsRepo.findOne({ where: { paymentId: p.id, alertType } });
+      const { data: existing } = await this.supabase.getClient()
+        .from('payment_alerts')
+        .select('*')
+        .eq('payment_id', p.id)
+        .eq('alert_type', alertType)
+        .single();
+
       if (!existing) {
-        const alert = this.alertsRepo.create({
-          officeId,
-          contractId: p.contractId,
-          paymentId: p.id,
-          alertType,
-          alertLevel: level,
-          dueDate: p.dueDate,
-          amount: p.amountDue,
-          daysOverdue: days,
-          isSent: false,
-          tenantPhone: p.tenantPhone ?? null,
-          tenantName: p.tenantName ?? null,
-        });
-        await this.alertsRepo.save(alert);
+        await this.supabase.getClient()
+          .from('payment_alerts')
+          .insert({
+            office_id: officeId,
+            contract_id: p.contract_id,
+            payment_id: p.id,
+            alert_type: alertType,
+            alert_level: level,
+            due_date: p.due_date,
+            amount: p.amount_due,
+            days_overdue: days,
+            is_sent: false,
+            tenant_phone: p.tenant_phone ?? null,
+            tenant_name: p.tenant_name ?? null,
+          });
       } else {
-        existing.alertLevel = level;
-        existing.daysOverdue = days;
-        await this.alertsRepo.save(existing);
+        await this.supabase.getClient()
+          .from('payment_alerts')
+          .update({
+            alert_level: level,
+            days_overdue: days,
+          })
+          .eq('id', existing.id);
       }
     }
 
-    // إعادة مع التنبيهات
-    const alerts = await this.alertsRepo.find({ where: { officeId } });
-    return { items, alerts };
+    const { data: alerts } = await this.supabase.getClient()
+      .from('payment_alerts')
+      .select('*')
+      .eq('office_id', officeId);
+
+    return { items: items || [], alerts: alerts || [] };
   }
 
   async sendReminder(officeId: string, paymentId: string, message?: string) {
-    const payment = await this.paymentsRepo.findOne({ where: { id: paymentId, officeId }, relations: ['contract'] });
+    const { data: payment } = await this.supabase.getClient()
+      .from('rental_payments')
+      .select('*, contract:rental_contracts(*)')
+      .eq('id', paymentId)
+      .eq('office_id', officeId)
+      .single();
+
     if (!payment) throw new NotFoundException('الدفعة غير موجودة');
 
-    const alert = this.alertsRepo.create({
-      officeId,
-      contractId: payment.contractId,
-      paymentId: payment.id,
-      alertType: 'manual_reminder',
-      alertLevel: 0,
-      dueDate: payment.dueDate,
-      amount: payment.amountDue,
-      daysOverdue: null,
-      isSent: true,
-      sentDate: new Date(),
-      tenantPhone: payment.tenantPhone ?? null,
-      tenantName: payment.tenantName ?? null,
-    });
-    await this.alertsRepo.save(alert);
+    await this.supabase.getClient()
+      .from('payment_alerts')
+      .insert({
+        office_id: officeId,
+        contract_id: payment.contract_id,
+        payment_id: payment.id,
+        alert_type: 'manual_reminder',
+        alert_level: 0,
+        due_date: payment.due_date,
+        amount: payment.amount_due,
+        days_overdue: null,
+        is_sent: true,
+        sent_date: new Date().toISOString(),
+        tenant_phone: payment.tenant_phone ?? null,
+        tenant_name: payment.tenant_name ?? null,
+      });
 
-    // استدعاء webhook إن وُجد
     const url = process.env.N8N_WEBHOOK_URL;
     if (url) {
       try {
@@ -146,10 +180,10 @@ export class PaymentsService {
             paymentId: payment.id,
             officeId,
             message: message ?? undefined,
-            tenantPhone: payment.tenantPhone ?? undefined,
-            tenantName: payment.tenantName ?? undefined,
-            dueDate: payment.dueDate,
-            amount: payment.amountDue,
+            tenantPhone: payment.tenant_phone ?? undefined,
+            tenantName: payment.tenant_name ?? undefined,
+            dueDate: payment.due_date,
+            amount: payment.amount_due,
           }),
         });
       } catch (_) {}
