@@ -44,6 +44,11 @@ export default function LoginPage() {
       // Save to Zustand store
       setAuth(user, token)
 
+      // Save to cookie for middleware
+      if (typeof window !== 'undefined') {
+        document.cookie = `auth_token=${token}; path=/; max-age=${60 * 60 * 24 * 7}` // 7 days
+      }
+
       toast.success('تم تسجيل الدخول بنجاح! 🎉')
       
       setTimeout(() => {
