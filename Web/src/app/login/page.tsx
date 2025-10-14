@@ -8,6 +8,7 @@ import * as z from 'zod'
 import { toast } from 'sonner'
 import { Eye, EyeOff, Phone, Lock, Home } from 'lucide-react'
 import api from '@/lib/api'
+import { useAuthStore } from '@/store/auth-store'
 
 const loginSchema = z.object({
   phone: z.string().regex(/^5[0-9]{8}$/, 'رقم الجوال يجب أن يبدأ بـ 5 ويتكون من 9 أرقام'),
@@ -18,6 +19,7 @@ type LoginForm = z.infer<typeof loginSchema>
 
 export default function LoginPage() {
   const router = useRouter()
+  const { setAuth } = useAuthStore()
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
 
@@ -39,10 +41,8 @@ export default function LoginPage() {
 
       const { token, user } = response.data
 
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('auth_token', token)
-        localStorage.setItem('user', JSON.stringify(user))
-      }
+      // Save to Zustand store
+      setAuth(user, token)
 
       toast.success('تم تسجيل الدخول بنجاح! 🎉')
       
