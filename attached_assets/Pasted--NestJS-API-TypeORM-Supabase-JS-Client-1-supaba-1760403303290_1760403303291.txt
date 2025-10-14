@@ -1,0 +1,70 @@
+أريدك أن تحول مشروع NestJS API من TypeORM إلى Supabase JS Client بالكامل.
+
+المطلوب:
+1. تثبيت @supabase/supabase-js في مجلد api/
+2. إنشاء SupabaseService و SupabaseModule في api/src/supabase/
+3. إزالة جميع استيرادات TypeORM من المشروع
+4. تحويل جميع الـ Services من Repository Pattern إلى Supabase Client
+5. تحديث app.module.ts ليستخدم SupabaseModule بدلاً من TypeOrmModule
+6. الاحتفاظ بجميع الـ DTOs والـ Controllers كما هي
+7. استخدام Environment Variables الموجودة: SUPABASE_URL و SUPABASE_SERVICE_ROLE_KEY
+
+التفاصيل التقنية:
+
+‏SupabaseService يجب أن يكون:
+‏```typescript
+‏import { Injectable } from '@nestjs/common';
+‏import { createClient, SupabaseClient } from '@supabase/supabase-js';
+
+‏@Injectable()
+‏export class SupabaseService {
+‏  private supabase: SupabaseClient;
+
+‏  constructor() {
+‏    this.supabase = createClient(
+‏      process.env.SUPABASE_URL,
+‏      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+  }
+
+‏  getClient(): SupabaseClient {
+‏    return this.supabase;
+  }
+}
+
+‏SupabaseModule يجب أن يكون Global: import { Module, Global } from '@nestjs/common';
+‏import { SupabaseService } from './supabase.service';
+
+‏@Global()
+‏@Module({
+‏  providers: [SupabaseService],
+‏  exports: [SupabaseService],
+})
+‏export class SupabaseModule {}
+
+تحويل الـ Services:
+	•	استبدل Repository Injection بـ SupabaseService
+	•	استبدل usersRepository.find() بـ supabase.from(‘users’).select(’*’)
+	•	استبدل usersRepository.findOne({where: {id}}) بـ supabase.from(‘users’).select(’*’).eq(‘id’, id).single()
+	•	استبدل usersRepository.save(entity) بـ supabase.from(‘users’).insert(entity)
+	•	استبدل usersRepository.update(id, data) بـ supabase.from(‘users’).update(data).eq(‘id’, id)
+	•	استبدل usersRepository.delete(id) بـ supabase.from(‘users’).delete().eq(‘id’, id)
+مهم جداً:
+	•	احذف جميع ملفات *.entity.ts (لن نحتاجها)
+	•	احذف TypeOrmModule من package.json dependencies
+	•	تأكد أن جميع استدعاءات Supabase تتعامل مع { data, error }
+	•	أضف معالجة الأخطاء: if (error) throw error;
+اسم الجداول في Supabase:
+‏	•	users
+‏	•	properties
+‏	•	offices
+‏	•	viewings
+‏	•	favorites
+(استخدم نفس الأسماء الموجودة في TypeORM entities)
+بعد الانتهاء:
+	1.	احذف TypeOrmModule.forRoot() من app.module.ts
+	2.	أضف SupabaseModule إلى imports في app.module.ts
+	3.	تأكد أن جميع الـ Services تستخدم SupabaseService
+	4.	احذف جميع استيرادات TypeORM
+	5.	قم بتشغيل npm install لحذف TypeORM dependencies
+ابدأ الآن!
