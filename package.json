@@ -1,15 +1,16 @@
 {
-  "name": "workspace",
+  "name": "real-estate-system",
   "version": "1.0.0",
-  "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "install:all": "cd api && npm install && cd ../Web && npm install",
+    "build:api": "cd api && npm run build",
+    "build:web": "cd Web && npm run build",
+    "build:all": "npm run build:api && npm run build:web",
+    "start:api": "cd api && npm run start:prod",
+    "start:web": "cd Web && npm run start",
+    "start:all": "concurrently \"npm run start:api\" \"npm run start:web\""
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
   "dependencies": {
-    "pg": "^8.13.1"
+    "concurrently": "^8.2.2"
   }
 }
