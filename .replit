@@ -1,0 +1,19 @@
+run = "npm run start:all"
+
+[nix]
+channel = "stable-22_11"
+
+[deployment]
+run = ["sh", "-c", "npm run start:all"]
+deploymentTarget = "cloudrun"
+
+[[ports]]
+localPort = 3001
+externalPort = 80
+
+[[ports]]
+localPort = 5000
+externalPort = 3000
+
+[env]
+NODE_ENV = "production"

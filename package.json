@@ -1,0 +1,17 @@
+{
+  "name": "real-estate-system",
+  "version": "1.0.0",
+  "description": "نظام إدارة العقارات",
+  "scripts": {
+    "install:all": "cd api && npm install && cd ../Web && npm install",
+    "start:api": "cd api && npm run start:prod",
+    "start:web": "cd Web && npm run build && npm run start",
+    "start:all": "concurrently \"npm run start:api\" \"npm run start:web\"",
+    "dev:api": "cd api && npm run start:dev",
+    "dev:web": "cd Web && npm run dev",
+    "dev:all": "concurrently \"npm run dev:api\" \"npm run dev:web\""
+  },
+  "dependencies": {
+    "concurrently": "^8.2.0"
+  }
+}

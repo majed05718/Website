@@ -1,27 +1,29 @@
-import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
-import { Providers } from '@/providers';
-import './globals.css';
+import './globals.css'
+import type { Metadata } from 'next'
+import { Cairo } from 'next/font/google'
+import { Toaster } from 'sonner'
 
-const inter = Inter({ subsets: ['latin'] });
+const cairo = Cairo({ 
+  subsets: ['arabic', 'latin'],
+  weight: ['400', '600', '700'],
+})
 
 export const metadata: Metadata = {
   title: 'نظام إدارة العقارات',
-  description: 'منصة شاملة لإدارة العقارات والمستأجرين',
-};
+  description: 'نظام شامل لإدارة العقارات والمكاتب العقارية',
+}
 
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: React.ReactNode
 }) {
   return (
     <html lang="ar" dir="rtl">
-      <body className={inter.className}>
-        <Providers>
-          {children}
-        </Providers>
+      <body className={cairo.className}>
+        {children}
+        <Toaster position="top-center" richColors />
       </body>
     </html>
-  );
+  )
 }
