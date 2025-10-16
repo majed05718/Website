@@ -52,7 +52,9 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         <nav className="mt-16 lg:mt-6 px-3 space-y-1">
           {menuItems.map((item) => {
             const Icon = item.icon
-            const isActive = pathname === item.href
+            const isActive = 
+              pathname === item.href || 
+              (item.href !== '/dashboard' && pathname.startsWith(item.href))
             
             return (
               <Link
@@ -62,8 +64,8 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                 className={cn(
                   'flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors',
                   isActive
-                    ? 'bg-blue-50 text-blue-600'
-                    : 'text-gray-700 hover:bg-gray-50'
+                    ? 'bg-[#0066CC] text-white'
+                    : 'text-gray-700 hover:bg-gray-100'
                 )}
               >
                 <Icon className="h-5 w-5" />
