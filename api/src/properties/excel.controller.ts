@@ -20,7 +20,7 @@ export class ExcelController {
   @UseInterceptors(FileInterceptor('file'))
   @ApiConsumes('multipart/form-data')
   @ApiBody({ schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } } } })
-  async importExcel(@Req() req: any, @UploadedFile() file?: Express.Multer.File) {
+  async importExcel(@Req() req: any, @UploadedFile() file?: any) {
     if (!file) {
       return { valid: [], invalid: [{ row: 0, errors: ['ملف الإكسل مفقود'] }] };
     }
