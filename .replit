@@ -17,3 +17,6 @@ externalPort = 3000
 
 [env]
 NODE_ENV = "production"
+
+[agent]
+expertMode = true
