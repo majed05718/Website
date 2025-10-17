@@ -3,6 +3,7 @@ modules = ["nodejs-20"]
 
 [nix]
 channel = "stable-22_11"
+packages = ["nano"]
 
 [deployment]
 run = ["sh", "-c", "npm run start:all"]
