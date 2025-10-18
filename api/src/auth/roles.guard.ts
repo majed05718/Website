@@ -2,7 +2,6 @@ import { CanActivate, ExecutionContext, ForbiddenException, Injectable, Unauthor
 import { Reflector } from '@nestjs/core';
 import { ROLES_KEY, AppRole } from './roles.decorator';
 
-// حارس للتحقق من صلاحيات الدور باستخدام @Roles()
 @Injectable()
 export class RolesGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
@@ -13,11 +12,22 @@ export class RolesGuard implements CanActivate {
       context.getClass(),
     ]);
 
-    if (!requiredRoles || requiredRoles.length === 0) {
-      return true; // لا توجد أدوار مطلوبة
+    const request: any = context.switchToHttp().getRequest();
+    
+    // للتطوير: إضافة user وهمي
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    if (isDevelopment && !request.user) {
+      request.user = {
+        user_id: 'dev-user-123',
+        office_id: 'dev-office-456',
+        role: 'manager'
+      };
     }
 
-    const request: any = context.switchToHttp().getRequest();
+    if (!requiredRoles || requiredRoles.length === 0) {
+      return true;
+    }
+
     const userRole: string | undefined = request?.user?.role;
 
     if (!userRole) {

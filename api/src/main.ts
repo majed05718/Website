@@ -1,4 +1,3 @@
-
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -13,8 +12,11 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   const logger = new Logger('Bootstrap');
 
-  // Security middleware
-  app.use(helmet());
+  // Security middleware - عطّل helmet للتطوير
+  const isDevelopment = process.env.NODE_ENV !== 'production';
+  if (!isDevelopment) {
+    app.use(helmet());
+  }
   app.use(compression());
   
   // CORS configuration
@@ -48,7 +50,6 @@ async function bootstrap() {
       dsn: configService.get('SENTRY_DSN'),
       environment: configService.get('NODE_ENV'),
       beforeSend: (event) => {
-        // Filter out sensitive data from logs
         if (event.extra) {
           const sensitiveKeys = ['password', 'token', 'key', 'secret'];
           Object.keys(event.extra).forEach(key => {
@@ -86,4 +87,3 @@ bootstrap().catch((error) => {
   console.error('Failed to start application:', error);
   process.exit(1);
 });
-

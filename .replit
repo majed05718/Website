@@ -3,10 +3,14 @@ modules = ["nodejs-20"]
 
 [nix]
 channel = "stable-22_11"
-packages = ["nano"]
+packages = ["nano", "lsof"]
 
 [deployment]
 run = ["sh", "-c", "npm run start:all"]
+
+[[ports]]
+localPort = 3000
+externalPort = 3001
 
 [[ports]]
 localPort = 3001
