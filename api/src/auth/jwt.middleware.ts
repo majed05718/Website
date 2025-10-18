@@ -27,19 +27,22 @@ export class JwtMiddleware implements NestMiddleware {
     try {
       const authHeader = req.headers['authorization'] || req.headers['Authorization'] as string | undefined;
       if (!authHeader || !authHeader.toLowerCase().startsWith('bearer ')) {
-        return next();
+        next();
+        return;
       }
 
       const token = authHeader.split(' ')[1];
       const client = this.getClient();
       if (!client) {
         // عدم توفر إعدادات Supabase، نمرر الطلب بدون مصادقة
-        return next();
+        next();
+        return;
       }
 
       const { data, error } = await client.auth.getUser(token);
       if (error || !data?.user) {
-        return next();
+        next();
+        return;
       }
 
       const supaUser = data.user as any;
@@ -56,9 +59,9 @@ export class JwtMiddleware implements NestMiddleware {
         user_id: supaUser.id ?? null,
         phone: phone ?? null,
       };
+      next();
     } catch (_err) {
       // نتجاهل أي أخطاء في الوسيط ونُمرر الطلب
-    } finally {
       next();
     }
   }
