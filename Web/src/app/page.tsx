@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 
 export default function Home() {
-  redirect('/login')
+  // Skip login - go directly to dashboard
+  redirect('/dashboard')
 }
