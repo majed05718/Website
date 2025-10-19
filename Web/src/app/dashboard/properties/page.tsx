@@ -8,7 +8,7 @@ import { PropertyCard } from '@/components/properties/PropertyCard';
 import { PropertiesFilters } from '@/components/properties/PropertiesFilters';
 import { PropertiesPagination } from '@/components/properties/PropertiesPagination';
 import { Button } from '@/components/ui/button';
-import { Plus, Building2, Loader2 } from 'lucide-react';
+import { Plus, Building2, Loader2, Upload, Download } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 
@@ -91,12 +91,28 @@ export default function PropertiesPage() {
           </p>
         </div>
 
-        <Link href="/dashboard/properties/new">
-          <Button className="bg-[#0066CC] hover:bg-[#0052A3] gap-2">
-            <Plus className="w-5 h-5" />
-            إضافة عقار جديد
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => router.push('/dashboard/properties/export')}
+          >
+            <Download className="w-4 h-4 ml-2" />
+            تصدير Excel
           </Button>
-        </Link>
+          <Button
+            variant="outline"
+            onClick={() => router.push('/dashboard/properties/import')}
+          >
+            <Upload className="w-4 h-4 ml-2" />
+            استيراد Excel
+          </Button>
+          <Link href="/dashboard/properties/new">
+            <Button className="bg-[#0066CC] hover:bg-[#0052A3] gap-2">
+              <Plus className="w-5 h-5" />
+              إضافة عقار جديد
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Filters */}
