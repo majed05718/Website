@@ -13,8 +13,8 @@ interface SidebarProps {
 const menuItems = [
   { icon: Home, label: 'الرئيسية', href: '/dashboard' },
   { icon: Building2, label: 'العقارات', href: '/dashboard/properties' },
-  { icon: Users, label: 'العملاء', href: '/dashboard/clients' },
-  { icon: Calendar, label: 'المواعيد', href: '/dashboard/viewings' },
+  { icon: Users, label: 'العملاء', href: '/dashboard/customers' },
+  { icon: Calendar, label: 'المواعيد', href: '/dashboard/appointments' },
   { icon: Star, label: 'المفضلة', href: '/dashboard/favorites' },
   { icon: BarChart3, label: 'التقارير', href: '/dashboard/reports' },
   { icon: Settings, label: 'الإعدادات', href: '/dashboard/settings' },
