@@ -11,6 +11,8 @@ import { MaintenanceModule } from './maintenance/maintenance.module';
 import { WhatsAppModule } from './whatsapp/whatsapp.module';
 import { OnboardingModule } from './onboarding/onboarding.module';
 import { AnalyticsModule } from './analytics/analytics.module';
+import { CustomersModule } from './customers/customers.module';
+import { AppointmentsModule } from './appointments/appointments.module';
 import { RateLimitGuard } from './common/guards/rate-limit.guard';
 import { ActivityLogInterceptor } from './common/interceptors/activity-log.interceptor';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
@@ -61,6 +63,8 @@ import { JwtMiddleware } from './auth/jwt.middleware';
     WhatsAppModule,
     OnboardingModule,
     AnalyticsModule,
+    CustomersModule,
+    AppointmentsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: RateLimitGuard },
