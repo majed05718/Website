@@ -2,17 +2,29 @@
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
-  images: {
-    domains: ['localhost'],
-  },
+  
+  // Rewrites for API calls
   async rewrites() {
-    return [
-      {
-        source: '/api/:path*',
-        destination: 'http://localhost:3001/:path*',
-      },
-    ];
+    // في Development
+    if (process.env.NODE_ENV === 'development') {
+      return [
+        {
+          source: '/api/:path*',
+          destination: 'http://localhost:3001/:path*',
+        },
+      ];
+    }
+    // في Production (Replit)
+    return [];
   },
+  
+  // Images from Supabase
+  images: {
+    domains: ['localhost', 'supabase.co', 'supabase.net'],
+  },
+  
+  // Disable telemetry
+  telemetry: false,
 }
 
 module.exports = nextConfig

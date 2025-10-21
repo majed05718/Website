@@ -8,13 +8,13 @@ export class CheckAvailabilityDto {
 
   @ApiProperty({ example: '10:00:00', description: 'وقت البداية' })
   @IsString()
-  start_time: string;
+  startTime: string;
 
   @ApiProperty({ example: '11:00:00', description: 'وقت النهاية' })
   @IsString()
-  end_time: string;
+  endTime: string;
 
   @ApiProperty({ example: 'uuid-staff-id', description: 'معرف الموظف' })
   @IsUUID()
-  assigned_staff_id: string;
+  assignedStaffId: string;
 }

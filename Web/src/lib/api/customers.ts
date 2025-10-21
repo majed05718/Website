@@ -10,7 +10,16 @@ import type {
   CustomerStats
 } from '@/types/customer';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
+// Dynamic API URL for Replit
+const getApiUrl = () => {
+  if (typeof window !== 'undefined') {
+    return window.location.origin;
+  }
+  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+};
+
+const API_URL = getApiUrl();
+console.log('🔵 API URL:', API_URL);
 
 // Helper function to build query string
 function buildQueryString(filters: CustomerFilters): string {

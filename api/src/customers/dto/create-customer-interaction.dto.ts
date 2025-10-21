@@ -17,12 +17,12 @@ export class CreateCustomerInteractionDto {
   @ApiPropertyOptional({ example: 'uuid-property-id', description: 'معرف العقار المرتبط' })
   @IsUUID()
   @IsOptional()
-  property_id?: string;
+  propertyId?: string;
 
   @ApiPropertyOptional({ example: 'uuid-contract-id', description: 'معرف العقد المرتبط' })
   @IsUUID()
   @IsOptional()
-  contract_id?: string;
+  contractId?: string;
 
   @ApiPropertyOptional({ example: 'العميل مهتم ويريد زيارة العقار', description: 'نتيجة التعامل' })
   @IsString()
@@ -32,10 +32,10 @@ export class CreateCustomerInteractionDto {
   @ApiPropertyOptional({ example: '2025-10-25T14:00:00Z', description: 'تاريخ المتابعة القادمة' })
   @IsDateString()
   @IsOptional()
-  next_follow_up?: string;
+  nextFollowUp?: string;
 
   @ApiPropertyOptional({ example: 'uuid-staff-id', description: 'معرف الموظف' })
   @IsUUID()
   @IsOptional()
-  staff_id?: string;
+  staffId?: string;
 }

@@ -1,7 +1,16 @@
 import axios from 'axios'
 import { ExcelColumn } from '@/types/excel'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api'
+// Dynamic API URL for Replit
+const getApiUrl = () => {
+  if (typeof window !== 'undefined') {
+    return window.location.origin;
+  }
+  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+};
+
+const API_URL = getApiUrl();
+console.log('🔵 API URL:', API_URL);
 
 /**
  * Import properties from Excel

@@ -7,6 +7,29 @@ import { UpdateCustomerDto } from './dto/update-customer.dto';
 export class CustomersService {
   constructor(private supabase: SupabaseService) {}
 
+  // Helper: Convert camelCase to snake_case for database
+  private toSnakeCase(obj: any): any {
+    const result: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      if (value !== undefined) {
+        const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+        result[snakeKey] = value;
+      }
+    }
+    return result;
+  }
+
+  // Helper: Convert snake_case to camelCase for response
+  private toCamelCase(obj: any): any {
+    if (!obj) return obj;
+    const result: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      const camelKey = key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+      result[camelKey] = value;
+    }
+    return result;
+  }
+
   async create(officeId: string, userId: string, dto: CreateCustomerDto) {
     const { data, error } = await this.supabase.getClient()
       .from('customers')
