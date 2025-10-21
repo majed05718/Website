@@ -1,8 +1,10 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/auth-store'
+import { Header } from '@/components/dashboard/Header'
+import { Sidebar } from '@/components/dashboard/Sidebar'
 
 export default function DashboardLayout({
   children,
@@ -11,14 +13,18 @@ export default function DashboardLayout({
 }) {
   const router = useRouter()
   const { isAuthenticated } = useAuthStore()
+  const [mounted, setMounted] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   useEffect(() => {
+    setMounted(true)
     if (!isAuthenticated()) {
       router.push('/login')
     }
   }, [isAuthenticated, router])
 
-  if (!isAuthenticated()) {
+  // Loading state
+  if (!mounted || !isAuthenticated()) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -29,5 +35,27 @@ export default function DashboardLayout({
     )
   }
 
-  return <>{children}</>
+  // Main layout with Sidebar + Header
+  return (
+    <div className="flex h-screen bg-gray-50" dir="rtl">
+      {/* Sidebar with state management */}
+      <Sidebar 
+        isOpen={sidebarOpen} 
+        onClose={() => setSidebarOpen(false)} 
+      />
+      
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Header with menu toggle */}
+        <Header onMenuClick={() => setSidebarOpen(true)} />
+        
+        {/* Page Content */}
+        <main className="flex-1 overflow-auto">
+          <div className="container mx-auto p-6">
+            {children}
+          </div>
+        </main>
+      </div>
+    </div>
+  )
 }

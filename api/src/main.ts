@@ -1,89 +1,41 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
-import * as compression from 'compression';
-import helmet from 'helmet';
-import * as Sentry from '@sentry/node';
 import { AppModule } from './app.module';
+import { ValidationPipe } from '@nestjs/common';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  const configService = app.get(ConfigService);
-  const logger = new Logger('Bootstrap');
 
-  // Security middleware - عطّل helmet للتطوير
-  const isDevelopment = process.env.NODE_ENV !== 'production';
-  if (!isDevelopment) {
-    app.use(helmet());
-  }
-  app.use(compression());
-  
-  // CORS configuration
-  const allowedOrigins = process.env.NODE_ENV === 'production' && process.env.FRONTEND_URL
-    ? [process.env.FRONTEND_URL]
-    : ['http://localhost:3000', 'http://localhost:5000'];
-  
+  // ✅ CORS - السماح لـ Frontend
   app.enableCors({
-    origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin) || origin.includes('.replit.dev') || origin.includes('.repl.co')) {
-        callback(null, true);
-      } else {
-        callback(null, false);
-      }
-    },
+    origin: ['http://localhost:3000', 'http://127.0.0.1:3000'],
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
   });
 
-  // Global validation pipe
   app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
+    new ValidationPipe({ 
+      whitelist: true, 
       transform: true,
       forbidNonWhitelisted: true,
-    }),
+    })
   );
 
-  // Sentry initialization
-  if (configService.get('SENTRY_DSN')) {
-    Sentry.init({
-      dsn: configService.get('SENTRY_DSN'),
-      environment: configService.get('NODE_ENV'),
-      beforeSend: (event) => {
-        if (event.extra) {
-          const sensitiveKeys = ['password', 'token', 'key', 'secret'];
-          Object.keys(event.extra).forEach(key => {
-            if (sensitiveKeys.some(sensitive => key.toLowerCase().includes(sensitive))) {
-              event.extra[key] = '[REDACTED]';
-            }
-          });
-        }
-        return event;
-      }
-    });
-  }
+  const config = new DocumentBuilder()
+    .setTitle('Property Management API')
+    .setDescription('Property Management System API')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .build();
+  
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api/docs', app, document);
 
-  // Swagger documentation
-  if (configService.get('NODE_ENV') !== 'production') {
-    const config = new DocumentBuilder()
-      .setTitle('Property Management API')
-      .setDescription('API Gateway for Property Management System')
-      .setVersion('1.0')
-      .addBearerAuth()
-      .build();
-    
-    const document = SwaggerModule.createDocument(app, config);
-    SwaggerModule.setup('api/docs', app, document);
-  }
-
-  const port = configService.get('PORT', 3001);
+  const port = process.env.PORT || 3001;
   await app.listen(port);
   
-  logger.log(`🚀 Application is running on: http://localhost:${port}`);
-  logger.log(`📚 Swagger docs available at: http://localhost:${port}/api/docs`);
+  console.log(`🚀 Application is running on: http://localhost:${port}`);
+  console.log(`📚 Swagger docs available at: http://localhost:${port}/api/docs`);
 }
-
-bootstrap().catch((error) => {
-  console.error('Failed to start application:', error);
-  process.exit(1);
-});
+bootstrap();
