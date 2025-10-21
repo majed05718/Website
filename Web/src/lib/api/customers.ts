@@ -10,7 +10,7 @@ import type {
   CustomerStats
 } from '@/types/customer';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
 // Helper function to build query string
 function buildQueryString(filters: CustomerFilters): string {

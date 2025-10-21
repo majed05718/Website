@@ -7,7 +7,7 @@ import type {
   AppointmentStats
 } from '@/types/appointment';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
 function buildQueryString(filters: AppointmentFilters): string {
   const params = new URLSearchParams();
