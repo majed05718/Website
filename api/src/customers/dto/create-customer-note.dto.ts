@@ -9,7 +9,7 @@ export class CreateCustomerNoteDto {
   @ApiPropertyOptional({ example: false, description: 'هل الملاحظة مهمة؟' })
   @IsBoolean()
   @IsOptional()
-  is_important?: boolean;
+  isImportant?: boolean;
 
   @ApiPropertyOptional({ example: { category: 'follow_up' }, description: 'الوسوم' })
   @IsObject()

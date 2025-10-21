@@ -2,48 +2,52 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import helmet from 'helmet';
+import * as compression from 'compression';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // ✅ CORS - السماح لـ Frontend
+  // ⚠️ CRITICAL: Trust Proxy (مطلوب للـ Replit)
+  app.getHttpAdapter().getInstance().set('trust proxy', 1);
+
+  // CORS Configuration - Dynamic Origin
+  const allowedOrigins = [
+    'http://localhost:3000',
+    'http://localhost:5173',
+  ];
+
+  // Add Replit Dev Domain dynamically
+  if (process.env.REPLIT_DEV_DOMAIN) {
+    allowedOrigins.push(`https://${process.env.REPLIT_DEV_DOMAIN}`);
+  }
+
   app.enableCors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps, Postman, curl)
+      // Allow requests with no origin (mobile apps, Postman, curl)
       if (!origin) return callback(null, true);
       
-      // List of allowed origins
-      const allowedOrigins = [
-        'http://localhost:3000',
-        'http://127.0.0.1:3000',
-        'http://localhost:3001',
-        'http://127.0.0.1:3001',
-      ];
-      
-      // Allow any Replit domain
-      if (origin.includes('.replit.dev') || origin.includes('.repl.co')) {
-        return callback(null, true);
+      if (allowedOrigins.indexOf(origin) !== -1) {
+        callback(null, true);
+      } else {
+        // في Replit، اسمح بكل شيء في Development
+        if (process.env.NODE_ENV === 'development') {
+          callback(null, true);
+        } else {
+          callback(new Error('Not allowed by CORS'));
+        }
       }
-      
-      // Check if origin is in allowed list
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-      
-      // For development, allow all origins (remove this in production)
-      if (process.env.NODE_ENV !== 'production') {
-        return callback(null, true);
-      }
-      
-      callback(new Error('Not allowed by CORS'));
     },
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
-    exposedHeaders: ['Content-Length', 'Content-Type'],
-    preflightContinue: false,
-    optionsSuccessStatus: 204,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   });
+
+  // Security & Compression
+  app.use(helmet({
+    contentSecurityPolicy: false, // تعطيل CSP للـ Swagger
+  }));
+  app.use(compression());
 
   app.useGlobalPipes(
     new ValidationPipe({ 
@@ -53,9 +57,10 @@ async function bootstrap() {
     })
   );
 
+  // Swagger Documentation
   const config = new DocumentBuilder()
     .setTitle('Property Management API')
-    .setDescription('Property Management System API')
+    .setDescription('API for Property Management System')
     .setVersion('1.0')
     .addBearerAuth()
     .build();
@@ -63,10 +68,30 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document);
 
+  // Health Check Endpoint
+  app.getHttpAdapter().get('/health', (req, res) => {
+    res.json({ 
+      status: 'ok', 
+      timestamp: new Date().toISOString(),
+      domain: process.env.REPLIT_DEV_DOMAIN || 'localhost',
+      port: process.env.PORT || 3001
+    });
+  });
+
+  // ⚠️ CRITICAL: Listen on 0.0.0.0 (مطلوب للـ Replit)
   const port = process.env.PORT || 3001;
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
   
-  console.log(`🚀 Application is running on: http://localhost:${port}`);
-  console.log(`📚 Swagger docs available at: http://localhost:${port}/api/docs`);
+  console.log('════════════════════════════════════════');
+  console.log('🚀 Backend is running!');
+  console.log(`📍 Local: ${await app.getUrl()}`);
+  console.log(`📚 Swagger: ${await app.getUrl()}/api/docs`);
+  
+  if (process.env.REPLIT_DEV_DOMAIN) {
+    console.log(`🌐 Public: https://${process.env.REPLIT_DEV_DOMAIN}`);
+    console.log(`📖 Swagger: https://${process.env.REPLIT_DEV_DOMAIN}/api/docs`);
+  }
+  console.log('════════════════════════════════════════');
 }
+
 bootstrap();

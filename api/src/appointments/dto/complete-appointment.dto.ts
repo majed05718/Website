@@ -4,5 +4,5 @@ import { ApiProperty } from '@nestjs/swagger';
 export class CompleteAppointmentDto {
   @ApiProperty({ example: 'تمت المعاينة بنجاح، العميل مهتم بالعقار', description: 'ملاحظات الإتمام' })
   @IsString()
-  completion_notes: string;
+  completionNotes: string;
 }

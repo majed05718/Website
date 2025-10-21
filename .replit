@@ -1,51 +1,17 @@
-run = "npm run start:all"
-modules = ["nodejs-20"]
-
-[nix]
-channel = "stable-22_11"
-packages = ["nano", "lsof"]
+# .replit
+entrypoint = "api/src/main.ts"
 
 [deployment]
-run = ["sh", "-c", "npm run start:all"]
+run = ["sh", "-c", "cd api && npm install && npm run build && npm run start:prod"]
+deploymentTarget = "cloudrun"
 
-[[ports]]
-localPort = 3000
-externalPort = 3001
+[env]
+NODE_ENV = "production"
 
 [[ports]]
 localPort = 3001
 externalPort = 80
 
 [[ports]]
-localPort = 5000
-externalPort = 80
-
-[env]
-NODE_ENV = "production"
-
-[agent]
-expertMode = true
-
-[workflows]
-runButton = "Project"
-
-[[workflows.workflow]]
-name = "Project"
-mode = "parallel"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Frontend"
-
-[[workflows.workflow]]
-name = "Frontend"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd Web && npm run dev"
-waitForPort = 5000
-
-[workflows.workflow.metadata]
-outputType = "webview"
+localPort = 3000
+externalPort = 3000
