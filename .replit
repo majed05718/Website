@@ -18,6 +18,10 @@ externalPort = 80
 
 [[ports]]
 localPort = 5000
+externalPort = 80
+
+[[ports]]
+localPort = 36963
 externalPort = 3000
 
 [env]
@@ -25,3 +29,27 @@ NODE_ENV = "production"
 
 [agent]
 expertMode = true
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Frontend"
+
+[[workflows.workflow]]
+name = "Frontend"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd Web && npm run dev"
+waitForPort = 5000
+
+[workflows.workflow.metadata]
+outputType = "webview"
