@@ -1,17 +1,7 @@
 import axios from 'axios'
 
-// Dynamic API URL for Replit
-const getApiUrl = () => {
-  // في browser، استخدم نفس الـ origin
-  if (typeof window !== 'undefined') {
-    return window.location.origin;
-  }
-  
-  // Server-side أو Development
-  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-};
-
-const API_URL = getApiUrl();
+// API Configuration
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 console.log('🔵 API URL:', API_URL);
 
