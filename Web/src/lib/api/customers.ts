@@ -10,16 +10,41 @@ import type {
   CustomerStats
 } from '@/types/customer';
 
-// Dynamic API URL for Replit
-const getApiUrl = () => {
-  if (typeof window !== 'undefined') {
-    return window.location.origin;
-  }
-  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-};
+// API Configuration
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
-const API_URL = getApiUrl();
-console.log('🔵 API URL:', API_URL);
+// Helper function for API calls
+const apiCall = async (endpoint: string, options: RequestInit = {}) => {
+  const url = `${API_URL}${endpoint}`;
+  
+  const defaultHeaders: HeadersInit = {
+    'Content-Type': 'application/json',
+  };
+
+  // Add Authorization header if token exists
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+      defaultHeaders['Authorization'] = `Bearer ${token}`;
+    }
+  }
+
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      ...defaultHeaders,
+      ...options.headers,
+    },
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.message || 'حدث خطأ في الاتصال بالخادم');
+  }
+
+  return response.json();
+};
 
 // Helper function to build query string
 function buildQueryString(filters: CustomerFilters): string {
@@ -45,47 +70,48 @@ export async function getCustomers(
   limit: number = 20
 ): Promise<CustomersResponse> {
   const queryString = buildQueryString(filters);
-  const url = `${API_URL}/customers?page=${page}&limit=${limit}${queryString ? '&' + queryString : ''}`;
-  
-  const response = await axios.get<CustomersResponse>(url);
-  return response.data;
+  const endpoint = `/customers?page=${page}&limit=${limit}${queryString ? '&' + queryString : ''}`;
+  return apiCall(endpoint);
 }
 
 // Get single customer with full details
 export async function getCustomer(id: string): Promise<CustomerDetailsResponse> {
-  const response = await axios.get<CustomerDetailsResponse>(`${API_URL}/customers/${id}`);
-  return response.data;
+  return apiCall(`/customers/${id}`);
 }
 
 // Create new customer
 export async function createCustomer(data: CustomerFormData): Promise<Customer> {
-  const response = await axios.post<Customer>(`${API_URL}/customers`, data);
-  return response.data;
+  return apiCall('/customers', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
 }
 
 // Update customer
 export async function updateCustomer(id: string, data: Partial<CustomerFormData>): Promise<Customer> {
-  const response = await axios.patch<Customer>(`${API_URL}/customers/${id}`, data);
-  return response.data;
+  return apiCall(`/customers/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
 }
 
 // Delete customer
 export async function deleteCustomer(id: string): Promise<void> {
-  await axios.delete(`${API_URL}/customers/${id}`);
+  return apiCall(`/customers/${id}`, {
+    method: 'DELETE',
+  });
 }
 
 // Get customer statistics
 export async function getCustomerStats(): Promise<CustomerStats> {
-  const response = await axios.get<CustomerStats>(`${API_URL}/customers/stats`);
-  return response.data;
+  return apiCall('/customers/stats');
 }
 
 // ===== Notes Management =====
 
 // Get customer notes
 export async function getCustomerNotes(customerId: string): Promise<CustomerNote[]> {
-  const response = await axios.get<CustomerNote[]>(`${API_URL}/customers/${customerId}/notes`);
-  return response.data;
+  return apiCall(`/customers/${customerId}/notes`);
 }
 
 // Add note
@@ -95,11 +121,10 @@ export async function addCustomerNote(
   isImportant: boolean = false,
   tags?: string[]
 ): Promise<CustomerNote> {
-  const response = await axios.post<CustomerNote>(
-    `${API_URL}/customers/${customerId}/notes`,
-    { content, isImportant, tags }
-  );
-  return response.data;
+  return apiCall(`/customers/${customerId}/notes`, {
+    method: 'POST',
+    body: JSON.stringify({ content, isImportant, tags }),
+  });
 }
 
 // Update note
@@ -108,26 +133,24 @@ export async function updateCustomerNote(
   noteId: string,
   data: { content?: string; isImportant?: boolean; tags?: string[] }
 ): Promise<CustomerNote> {
-  const response = await axios.patch<CustomerNote>(
-    `${API_URL}/customers/${customerId}/notes/${noteId}`,
-    data
-  );
-  return response.data;
+  return apiCall(`/customers/${customerId}/notes/${noteId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
 }
 
 // Delete note
 export async function deleteCustomerNote(customerId: string, noteId: string): Promise<void> {
-  await axios.delete(`${API_URL}/customers/${customerId}/notes/${noteId}`);
+  return apiCall(`/customers/${customerId}/notes/${noteId}`, {
+    method: 'DELETE',
+  });
 }
 
 // ===== Interactions Management =====
 
 // Get customer interactions
 export async function getCustomerInteractions(customerId: string): Promise<CustomerInteraction[]> {
-  const response = await axios.get<CustomerInteraction[]>(
-    `${API_URL}/customers/${customerId}/interactions`
-  );
-  return response.data;
+  return apiCall(`/customers/${customerId}/interactions`);
 }
 
 // Add interaction
@@ -143,11 +166,10 @@ export async function addCustomerInteraction(
     nextFollowUp?: string;
   }
 ): Promise<CustomerInteraction> {
-  const response = await axios.post<CustomerInteraction>(
-    `${API_URL}/customers/${customerId}/interactions`,
-    data
-  );
-  return response.data;
+  return apiCall(`/customers/${customerId}/interactions`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
 }
 
 // ===== Property Relationships =====
@@ -158,9 +180,9 @@ export async function linkCustomerToProperty(
   propertyId: string,
   relationship: 'owner' | 'tenant' | 'interested' | 'viewed'
 ): Promise<void> {
-  await axios.post(`${API_URL}/customers/${customerId}/properties`, {
-    propertyId,
-    relationship
+  return apiCall(`/customers/${customerId}/properties`, {
+    method: 'POST',
+    body: JSON.stringify({ propertyId, relationship }),
   });
 }
 
@@ -169,25 +191,21 @@ export async function unlinkCustomerFromProperty(
   customerId: string,
   propertyId: string
 ): Promise<void> {
-  await axios.delete(`${API_URL}/customers/${customerId}/properties/${propertyId}`);
+  return apiCall(`/customers/${customerId}/properties/${propertyId}`, {
+    method: 'DELETE',
+  });
 }
 
 // ===== Search & Autocomplete =====
 
 // Search customers (for autocomplete)
 export async function searchCustomers(query: string, limit: number = 10): Promise<Customer[]> {
-  const response = await axios.get<Customer[]>(
-    `${API_URL}/customers/search?q=${encodeURIComponent(query)}&limit=${limit}`
-  );
-  return response.data;
+  return apiCall(`/customers/search?q=${encodeURIComponent(query)}&limit=${limit}`);
 }
 
 // Get recent customers
 export async function getRecentCustomers(limit: number = 5): Promise<Customer[]> {
-  const response = await axios.get<Customer[]>(
-    `${API_URL}/customers/recent?limit=${limit}`
-  );
-  return response.data;
+  return apiCall(`/customers/recent?limit=${limit}`);
 }
 
 // ===== Bulk Operations =====
@@ -197,12 +215,18 @@ export async function bulkUpdateCustomers(
   ids: string[],
   data: Partial<CustomerFormData>
 ): Promise<void> {
-  await axios.patch(`${API_URL}/customers/bulk`, { ids, data });
+  return apiCall('/customers/bulk', {
+    method: 'PATCH',
+    body: JSON.stringify({ ids, data }),
+  });
 }
 
 // Bulk delete customers
 export async function bulkDeleteCustomers(ids: string[]): Promise<void> {
-  await axios.delete(`${API_URL}/customers/bulk`, { data: { ids } });
+  return apiCall('/customers/bulk', {
+    method: 'DELETE',
+    body: JSON.stringify({ ids }),
+  });
 }
 
 // Export customers to Excel
