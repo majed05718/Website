@@ -85,7 +85,7 @@ export class AnalyticsService {
       profit: (rows || []).map(r => Number(r.profit)),
       periods: (rows || []).map(r => r.report_period),
     };
-    return { rows: rows || [], trends };
+    return { data: rows || [], trends };
   }
 
   async kpis(officeId: string) {
@@ -95,7 +95,7 @@ export class AnalyticsService {
       .eq('office_id', officeId);
     
     const data = (rows || []).map(r => ({ name: r.kpi_name, current: Number(r.current_value), target: Number(r.target_value), period: r.report_period }));
-    return { items: data };
+    return { data };
   }
 
   async staffPerformance(officeId: string, staffPhone?: string, reportPeriod?: string) {
@@ -108,6 +108,6 @@ export class AnalyticsService {
     if (reportPeriod) query = query.eq('report_period', reportPeriod);
     
     const { data: rows } = await query.order('revenue_generated', { ascending: false });
-    return { items: rows || [] };
+    return { data: rows || [] };
   }
 }

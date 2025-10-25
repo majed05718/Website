@@ -5,7 +5,7 @@ export interface PropertiesResponse {
   data: Property[];
   total: number;
   page: number;
-  pageSize: number;
+  limit: number;
 }
 
 export const propertiesApi = {

@@ -60,13 +60,13 @@ export async function getAppointments(
   limit: number = 50
 ): Promise<AppointmentsResponse> {
   const queryString = buildQueryString(filters);
-  const endpoint = `/appointments?page=${page}&limit=${limit}${queryString ? '&' + queryString : ''}`;
+  const endpoint = `/api/appointments?page=${page}&limit=${limit}${queryString ? '&' + queryString : ''}`;
   return apiCall(endpoint);
 }
 
 // Get single appointment
 export async function getAppointment(id: string): Promise<Appointment> {
-  return apiCall(`/appointments/${id}`);
+  return apiCall(`/api/appointments/${id}`);
 }
 
 // Get appointments for specific date range (for calendar)
@@ -74,12 +74,12 @@ export async function getAppointmentsByDateRange(
   startDate: string,
   endDate: string
 ): Promise<Appointment[]> {
-  return apiCall(`/appointments/calendar?startDate=${startDate}&endDate=${endDate}`);
+  return apiCall(`/api/appointments/calendar?startDate=${startDate}&endDate=${endDate}`);
 }
 
 // Create appointment
 export async function createAppointment(data: AppointmentFormData): Promise<Appointment> {
-  return apiCall('/appointments', {
+  return apiCall('/api/appointments', {
     method: 'POST',
     body: JSON.stringify(data),
   });
@@ -90,7 +90,7 @@ export async function updateAppointment(
   id: string,
   data: Partial<AppointmentFormData>
 ): Promise<Appointment> {
-  return apiCall(`/appointments/${id}`, {
+  return apiCall(`/api/appointments/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(data),
   });
@@ -98,7 +98,7 @@ export async function updateAppointment(
 
 // Delete appointment
 export async function deleteAppointment(id: string): Promise<void> {
-  return apiCall(`/appointments/${id}`, {
+  return apiCall(`/api/appointments/${id}`, {
     method: 'DELETE',
   });
 }
@@ -109,7 +109,7 @@ export async function updateAppointmentStatus(
   status: string,
   notes?: string
 ): Promise<Appointment> {
-  return apiCall(`/appointments/${id}/status`, {
+  return apiCall(`/api/appointments/${id}/status`, {
     method: 'PATCH',
     body: JSON.stringify({ status, notes }),
   });
@@ -120,7 +120,7 @@ export async function cancelAppointment(
   id: string,
   reason: string
 ): Promise<Appointment> {
-  return apiCall(`/appointments/${id}/cancel`, {
+  return apiCall(`/api/appointments/${id}/cancel`, {
     method: 'PATCH',
     body: JSON.stringify({ reason }),
   });
@@ -131,7 +131,7 @@ export async function completeAppointment(
   id: string,
   notes?: string
 ): Promise<Appointment> {
-  return apiCall(`/appointments/${id}/complete`, {
+  return apiCall(`/api/appointments/${id}/complete`, {
     method: 'PATCH',
     body: JSON.stringify({ notes }),
   });
@@ -139,12 +139,12 @@ export async function completeAppointment(
 
 // Get statistics
 export async function getAppointmentStats(): Promise<AppointmentStats> {
-  return apiCall('/appointments/stats');
+  return apiCall('/api/appointments/stats');
 }
 
 // Send reminder
 export async function sendReminder(id: string, type: string): Promise<void> {
-  return apiCall(`/appointments/${id}/remind`, {
+  return apiCall(`/api/appointments/${id}/remind`, {
     method: 'POST',
     body: JSON.stringify({ type }),
   });
@@ -157,7 +157,7 @@ export async function checkAvailability(
   endTime: string,
   staffId?: string
 ): Promise<{ available: boolean; conflicts: Appointment[] }> {
-  return apiCall('/appointments/check-availability', {
+  return apiCall('/api/appointments/check-availability', {
     method: 'POST',
     body: JSON.stringify({ date, startTime, endTime, staffId }),
   });
@@ -166,10 +166,10 @@ export async function checkAvailability(
 // Get today's appointments
 export async function getTodayAppointments(): Promise<Appointment[]> {
   const today = new Date().toISOString().split('T')[0];
-  return apiCall(`/appointments/today?date=${today}`);
+  return apiCall(`/api/appointments/today?date=${today}`);
 }
 
 // Get upcoming appointments
 export async function getUpcomingAppointments(limit: number = 5): Promise<Appointment[]> {
-  return apiCall(`/appointments/upcoming?limit=${limit}`);
+  return apiCall(`/api/appointments/upcoming?limit=${limit}`);
 }
