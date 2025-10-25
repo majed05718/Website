@@ -7,10 +7,15 @@ import { MarkPaidDto } from './dto/mark-paid.dto';
 export class PaymentsService {
   constructor(private readonly supabase: SupabaseService) {}
 
-  async findPayments(officeId: string, filters: FilterPaymentsDto) {
+  async findPayments(officeId: string, filters: FilterPaymentsDto & { page?: number; limit?: number }) {
+    const page: number = Math.max(1, Number(filters?.page ?? 1));
+    const limit: number = Math.min(100, Math.max(1, Number(filters?.limit ?? 50)));
+    const start = (page - 1) * limit;
+    const end = start + limit - 1;
+
     let query = this.supabase.getClient()
       .from('rental_payments')
-      .select('*, contract:rental_contracts(*)')
+      .select('*, contract:rental_contracts(*)', { count: 'exact' })
       .eq('office_id', officeId);
 
     if (filters.status) query = query.eq('status', filters.status);
@@ -19,12 +24,12 @@ export class PaymentsService {
     if (filters.due_from) query = query.gte('due_date', filters.due_from);
     if (filters.due_to) query = query.lt('due_date', filters.due_to);
 
-    query = query.order('due_date', { ascending: true });
+    query = query.order('due_date', { ascending: true }).range(start, end);
 
-    const { data, error } = await query;
+    const { data, error, count } = await query;
     if (error) throw error;
 
-    return data || [];
+    return { data: data || [], total: count || 0, page, limit };
   }
 
   async findByContract(officeId: string, contractId: string) {
@@ -139,7 +144,7 @@ export class PaymentsService {
       .select('*')
       .eq('office_id', officeId);
 
-    return { items: items || [], alerts: alerts || [] };
+    return { data: items || [], alerts: alerts || [] };
   }
 
   async sendReminder(officeId: string, paymentId: string, message?: string) {

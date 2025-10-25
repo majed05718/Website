@@ -57,17 +57,38 @@ export class AppointmentsService {
   }
 
   async findAll(officeId: string, filters?: any) {
-    let query = this.supabase.getClient()
+    // Pagination
+    const page: number = Math.max(1, Number(filters?.page ?? 1));
+    const limit: number = Math.min(100, Math.max(1, Number(filters?.limit ?? 50)));
+    const start = (page - 1) * limit;
+    const end = start + limit - 1;
+
+    // Base query with total count
+    let query = this.supabase
+      .getClient()
       .from('appointments')
-      .select('*')
+      .select('*', { count: 'exact' })
       .eq('office_id', officeId);
     
-    if (filters?.status) query = query.eq('status', filters.status);
+    // Filters
+    if (filters?.status && filters.status !== 'all') query = query.eq('status', filters.status);
     if (filters?.date) query = query.eq('date', filters.date);
+    if (filters?.type && filters.type !== 'all') query = query.eq('type', filters.type);
+    if (filters?.assigned_staff_id) query = query.eq('assigned_staff_id', filters.assigned_staff_id);
+    if (filters?.property_id) query = query.eq('property_id', filters.property_id);
+    if (filters?.customer_id) query = query.eq('customer_id', filters.customer_id);
 
-    const { data, error } = await query.order('date', { ascending: true });
+    // Ordering: upcoming first by date
+    const orderBy = filters?.order_by ?? 'date';
+    const ascending = (filters?.order ?? 'asc') === 'asc';
+    query = query.order(orderBy, { ascending });
+
+    // Range for pagination
+    query = query.range(start, end);
+
+    const { data, error, count } = await query;
     if (error) throw error;
-    return data;
+    return { data: data || [], total: count || 0, page, limit };
   }
 
   async findOne(officeId: string, id: string) {

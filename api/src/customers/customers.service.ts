@@ -57,17 +57,44 @@ export class CustomersService {
   }
 
   async findAll(officeId: string, filters?: any) {
-    let query = this.supabase.getClient()
-      .from('customers')
-      .select('*')
-      .eq('office_id', officeId);
-    
-    if (filters?.type) query = query.eq('type', filters.type);
-    if (filters?.status) query = query.eq('status', filters.status);
+    // Pagination
+    const page: number = Math.max(1, Number(filters?.page ?? 1));
+    const limit: number = Math.min(100, Math.max(1, Number(filters?.limit ?? 20)));
+    const start = (page - 1) * limit;
+    const end = start + limit - 1;
 
-    const { data, error } = await query.order('created_at', { ascending: false });
+    // Base query with total count
+    let query = this.supabase
+      .getClient()
+      .from('customers')
+      .select('*', { count: 'exact' })
+      .eq('office_id', officeId);
+
+    // Filters (minimal useful subset; extend as needed)
+    if (filters?.type && filters.type !== 'all') query = query.eq('type', filters.type);
+    if (filters?.status && filters.status !== 'all') query = query.eq('status', filters.status);
+    if (filters?.city) query = query.eq('city', filters.city);
+    if (filters?.assigned_staff_id) query = query.eq('assigned_staff_id', filters.assigned_staff_id);
+    if (filters?.search) {
+      const term = String(filters.search).trim();
+      if (term) {
+        // Search in name/phone/email
+        query = query.or(`name.ilike.%${term}%,phone.ilike.%${term}%,email.ilike.%${term}%`);
+      }
+    }
+
+    // Sorting
+    const orderBy = filters?.order_by ?? 'created_at';
+    const ascending = (filters?.order ?? 'desc') === 'asc';
+    query = query.order(orderBy, { ascending });
+
+    // Pagination range
+    query = query.range(start, end);
+
+    const { data, error, count } = await query;
     if (error) throw error;
-    return data;
+
+    return { data: data || [], total: count || 0, page, limit };
   }
 
   async findOne(officeId: string, id: string) {
