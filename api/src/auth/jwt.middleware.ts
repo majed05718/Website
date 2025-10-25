@@ -9,6 +9,12 @@ import * as jwt from 'jsonwebtoken';
 @Injectable()
 export class JwtMiddleware implements NestMiddleware {
   async use(req: Request, res: Response, next: NextFunction) {
+    // Skip authentication if SKIP_AUTH is true
+    if (process.env.SKIP_AUTH === 'true') {
+      next();
+      return;
+    }
+
     // Skip authentication for health check endpoint
     if (req.path === '/health' || req.path === '/api/health') {
       next();

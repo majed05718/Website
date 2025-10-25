@@ -45,7 +45,7 @@ export class PropertiesService {
     const { data, error, count } = await query;
     if (error) throw error;
 
-    return { items: data || [], total: count || 0, page, limit };
+    return { data: data || [], total: count || 0, page, limit };
   }
 
   async findOneWithImages(officeId: string, id: string) {

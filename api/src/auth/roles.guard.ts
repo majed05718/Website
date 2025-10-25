@@ -7,6 +7,21 @@ export class RolesGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
+    // Skip authentication if SKIP_AUTH is true
+    if (process.env.SKIP_AUTH === 'true') {
+      const request: any = context.switchToHttp().getRequest();
+      // Add mock user with REAL office_id from Supabase
+      if (!request.user) {
+        request.user = {
+          user_id: 'dev-user-123',
+          office_id: '94d768f1-2bcb-4a2a-9782-6f1e4bc9440c',  // ← Real office ID!
+          officeId: '94d768f1-2bcb-4a2a-9782-6f1e4bc9440c',   // ← Both formats
+          role: 'manager'
+        };
+      }
+      return true;
+    }
+
     const requiredRoles = this.reflector.getAllAndOverride<AppRole[] | undefined>(ROLES_KEY, [
       context.getHandler(),
       context.getClass(),
@@ -19,7 +34,8 @@ export class RolesGuard implements CanActivate {
     if (isDevelopment && !request.user) {
       request.user = {
         user_id: 'dev-user-123',
-        office_id: 'dev-office-456',
+        office_id: '94d768f1-2bcb-4a2a-9782-6f1e4bc9440c',
+        officeId: '94d768f1-2bcb-4a2a-9782-6f1e4bc9440c',
         role: 'manager'
       };
     }

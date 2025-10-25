@@ -24,34 +24,34 @@ export const propertiesApi = {
     params.append('page', page.toString());
     params.append('limit', pageSize.toString());
 
-    const response = await api.get(`/properties?${params.toString()}`);
+    const response = await api.get(`/api/properties?${params.toString()}`);
     return response.data;
   },
 
   async getPropertyById(id: string): Promise<Property> {
-    const response = await api.get(`/properties/${id}`);
+    const response = await api.get(`/api/properties/${id}`);
     return response.data;
   },
 
   async createProperty(data: CreatePropertyDto): Promise<Property> {
-    const response = await api.post('/properties', data);
+    const response = await api.post('/api/properties', data);
     return response.data;
   },
 
   async updateProperty(id: string, data: UpdatePropertyDto): Promise<Property> {
-    const response = await api.patch(`/properties/${id}`, data);
+    const response = await api.patch(`/api/properties/${id}`, data);
     return response.data;
   },
 
   async deleteProperty(id: string): Promise<void> {
-    await api.delete(`/properties/${id}`);
+    await api.delete(`/api/properties/${id}`);
   },
 
   async uploadImage(file: File): Promise<string> {
     const formData = new FormData();
     formData.append('file', file);
     
-    const response = await api.post('/properties/upload', formData, {
+    const response = await api.post('/api/properties/upload', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -61,7 +61,7 @@ export const propertiesApi = {
   },
 
   async getStats() {
-    const response = await api.get('/properties/stats');
+    const response = await api.get('/api/properties/stats');
     return response.data;
   },
 };

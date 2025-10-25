@@ -97,7 +97,7 @@ async function bootstrap() {
   });
 
   // Listen on localhost only (Nginx will handle external access)
-  await app.listen(port, 'localhost');
+  await app.listen(port, '0.0.0.0');
 
   console.log('═══════════════════════════════════════════════════');
   console.log('🚀 Backend is running!');

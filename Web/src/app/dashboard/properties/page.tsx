@@ -15,7 +15,7 @@ import { toast } from 'sonner';
 export default function PropertiesPage() {
   const router = useRouter();
   const {
-    properties,
+    properties = [],
     filters,
     currentPage,
     pageSize,

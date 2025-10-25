@@ -23,11 +23,11 @@ module.exports = {
       name: 'frontend',
       cwd: './Web',
       script: 'node_modules/next/dist/bin/next',
-      args: 'start -p 3000',
+      args: 'dev -p 3000',
       instances: 1,
       exec_mode: 'cluster',
       env: {
-        NODE_ENV: 'production',
+        NODE_ENV: 'development',
         PORT: 3000,
       },
       error_file: '/var/log/pm2/frontend-error.log',
