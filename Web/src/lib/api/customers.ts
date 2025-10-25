@@ -70,18 +70,18 @@ export async function getCustomers(
   limit: number = 20
 ): Promise<CustomersResponse> {
   const queryString = buildQueryString(filters);
-  const endpoint = `/customers?page=${page}&limit=${limit}${queryString ? '&' + queryString : ''}`;
+  const endpoint = `/api/customers?page=${page}&limit=${limit}${queryString ? '&' + queryString : ''}`;
   return apiCall(endpoint);
 }
 
 // Get single customer with full details
 export async function getCustomer(id: string): Promise<CustomerDetailsResponse> {
-  return apiCall(`/customers/${id}`);
+  return apiCall(`/api/customers/${id}`);
 }
 
 // Create new customer
 export async function createCustomer(data: CustomerFormData): Promise<Customer> {
-  return apiCall('/customers', {
+  return apiCall('/api/customers', {
     method: 'POST',
     body: JSON.stringify(data),
   });
@@ -89,7 +89,7 @@ export async function createCustomer(data: CustomerFormData): Promise<Customer> 
 
 // Update customer
 export async function updateCustomer(id: string, data: Partial<CustomerFormData>): Promise<Customer> {
-  return apiCall(`/customers/${id}`, {
+  return apiCall(`/api/customers/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(data),
   });
@@ -97,21 +97,21 @@ export async function updateCustomer(id: string, data: Partial<CustomerFormData>
 
 // Delete customer
 export async function deleteCustomer(id: string): Promise<void> {
-  return apiCall(`/customers/${id}`, {
+  return apiCall(`/api/customers/${id}`, {
     method: 'DELETE',
   });
 }
 
 // Get customer statistics
 export async function getCustomerStats(): Promise<CustomerStats> {
-  return apiCall('/customers/stats');
+  return apiCall('/api/customers/stats');
 }
 
 // ===== Notes Management =====
 
 // Get customer notes
 export async function getCustomerNotes(customerId: string): Promise<CustomerNote[]> {
-  return apiCall(`/customers/${customerId}/notes`);
+  return apiCall(`/api/customers/${customerId}/notes`);
 }
 
 // Add note
@@ -121,7 +121,7 @@ export async function addCustomerNote(
   isImportant: boolean = false,
   tags?: string[]
 ): Promise<CustomerNote> {
-  return apiCall(`/customers/${customerId}/notes`, {
+  return apiCall(`/api/customers/${customerId}/notes`, {
     method: 'POST',
     body: JSON.stringify({ content, isImportant, tags }),
   });
@@ -133,7 +133,7 @@ export async function updateCustomerNote(
   noteId: string,
   data: { content?: string; isImportant?: boolean; tags?: string[] }
 ): Promise<CustomerNote> {
-  return apiCall(`/customers/${customerId}/notes/${noteId}`, {
+  return apiCall(`/api/customers/${customerId}/notes/${noteId}`, {
     method: 'PATCH',
     body: JSON.stringify(data),
   });
@@ -141,7 +141,7 @@ export async function updateCustomerNote(
 
 // Delete note
 export async function deleteCustomerNote(customerId: string, noteId: string): Promise<void> {
-  return apiCall(`/customers/${customerId}/notes/${noteId}`, {
+  return apiCall(`/api/customers/${customerId}/notes/${noteId}`, {
     method: 'DELETE',
   });
 }
@@ -150,7 +150,7 @@ export async function deleteCustomerNote(customerId: string, noteId: string): Pr
 
 // Get customer interactions
 export async function getCustomerInteractions(customerId: string): Promise<CustomerInteraction[]> {
-  return apiCall(`/customers/${customerId}/interactions`);
+  return apiCall(`/api/customers/${customerId}/interactions`);
 }
 
 // Add interaction
@@ -166,7 +166,7 @@ export async function addCustomerInteraction(
     nextFollowUp?: string;
   }
 ): Promise<CustomerInteraction> {
-  return apiCall(`/customers/${customerId}/interactions`, {
+  return apiCall(`/api/customers/${customerId}/interactions`, {
     method: 'POST',
     body: JSON.stringify(data),
   });
@@ -180,7 +180,7 @@ export async function linkCustomerToProperty(
   propertyId: string,
   relationship: 'owner' | 'tenant' | 'interested' | 'viewed'
 ): Promise<void> {
-  return apiCall(`/customers/${customerId}/properties`, {
+  return apiCall(`/api/customers/${customerId}/properties`, {
     method: 'POST',
     body: JSON.stringify({ propertyId, relationship }),
   });
@@ -191,7 +191,7 @@ export async function unlinkCustomerFromProperty(
   customerId: string,
   propertyId: string
 ): Promise<void> {
-  return apiCall(`/customers/${customerId}/properties/${propertyId}`, {
+  return apiCall(`/api/customers/${customerId}/properties/${propertyId}`, {
     method: 'DELETE',
   });
 }
@@ -200,12 +200,12 @@ export async function unlinkCustomerFromProperty(
 
 // Search customers (for autocomplete)
 export async function searchCustomers(query: string, limit: number = 10): Promise<Customer[]> {
-  return apiCall(`/customers/search?q=${encodeURIComponent(query)}&limit=${limit}`);
+  return apiCall(`/api/customers/search?q=${encodeURIComponent(query)}&limit=${limit}`);
 }
 
 // Get recent customers
 export async function getRecentCustomers(limit: number = 5): Promise<Customer[]> {
-  return apiCall(`/customers/recent?limit=${limit}`);
+  return apiCall(`/api/customers/recent?limit=${limit}`);
 }
 
 // ===== Bulk Operations =====
@@ -215,7 +215,7 @@ export async function bulkUpdateCustomers(
   ids: string[],
   data: Partial<CustomerFormData>
 ): Promise<void> {
-  return apiCall('/customers/bulk', {
+  return apiCall('/api/customers/bulk', {
     method: 'PATCH',
     body: JSON.stringify({ ids, data }),
   });
@@ -223,7 +223,7 @@ export async function bulkUpdateCustomers(
 
 // Bulk delete customers
 export async function bulkDeleteCustomers(ids: string[]): Promise<void> {
-  return apiCall('/customers/bulk', {
+  return apiCall('/api/customers/bulk', {
     method: 'DELETE',
     body: JSON.stringify({ ids }),
   });
@@ -233,7 +233,7 @@ export async function bulkDeleteCustomers(ids: string[]): Promise<void> {
 export async function exportCustomers(filters: CustomerFilters = {}): Promise<Blob> {
   const queryString = buildQueryString(filters);
   const response = await axios.get(
-    `${API_URL}/customers/export?${queryString}`,
+    `${API_URL}/api/customers/export?${queryString}`,
     { responseType: 'blob' }
   );
   return response.data;

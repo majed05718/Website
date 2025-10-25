@@ -9,7 +9,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
  */
 export async function importProperties(properties: any[]) {
   try {
-    const response = await axios.post(`${API_URL}/properties/import/confirm`, {
+    const response = await axios.post(`${API_URL}/api/properties/import/confirm`, {
       properties
     })
     return response.data
@@ -23,7 +23,7 @@ export async function importProperties(properties: any[]) {
  */
 export async function exportProperties(filters?: any) {
   try {
-    const response = await axios.get(`${API_URL}/properties/export`, {
+    const response = await axios.get(`${API_URL}/api/properties/export`, {
       params: filters,
       responseType: 'blob'
     })
@@ -49,7 +49,7 @@ export async function exportProperties(filters?: any) {
  */
 export async function downloadTemplate() {
   try {
-    const response = await axios.get(`${API_URL}/properties/template`, {
+    const response = await axios.get(`${API_URL}/api/properties/template`, {
       responseType: 'blob'
     })
     

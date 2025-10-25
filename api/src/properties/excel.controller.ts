@@ -74,7 +74,7 @@ export class ExcelController {
     const officeId = req?.user?.office_id;
     const result = await this.propertiesService.findAll(officeId, filters);
 
-    const data = result.items.map((p) => ({
+    const data = result.data.map((p) => ({
       id: p.id,
       office_id: p.officeId,
       property_code: p.propertyCode,
