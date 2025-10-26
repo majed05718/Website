@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx'
+import Papa from 'papaparse'
 import { ParsedExcelData } from '@/types/excel'
 
 /**
@@ -44,6 +45,42 @@ export async function parseExcelFile(file: File): Promise<ParsedExcelData> {
     }
     
     reader.readAsArrayBuffer(file)
+  })
+}
+
+/**
+ * Parse CSV file to structured data
+ * دالة لتحليل ملفات CSV
+ */
+export async function parseCSVFile(file: File): Promise<ParsedExcelData> {
+  return new Promise((resolve, reject) => {
+    Papa.parse(file, {
+      complete: (results) => {
+        try {
+          const data = results.data as any[][]
+          
+          // Extract headers and filter empty rows
+          const headers = data[0]?.map(h => String(h || '').trim()) || []
+          const dataRows = data
+            .slice(1)
+            .filter(row => row.some(cell => cell !== null && cell !== undefined && cell !== ''))
+          
+          resolve({
+            fileName: file.name,
+            headers,
+            data: dataRows,
+            rowCount: dataRows.length
+          })
+        } catch (error) {
+          reject(error)
+        }
+      },
+      error: (error) => {
+        reject(new Error('فشل في قراءة ملف CSV: ' + error.message))
+      },
+      skipEmptyLines: true,
+      encoding: 'UTF-8'
+    })
   })
 }
 

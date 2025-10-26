@@ -8,12 +8,14 @@ import { Card } from '@/components/ui/card'
 import { ExcelUploader } from '@/components/properties/import/ExcelUploader'
 import { ColumnMapper } from '@/components/properties/import/ColumnMapper'
 import { DataPreview } from '@/components/properties/import/DataPreview'
+import { ValidationSummary } from '@/components/properties/import/ValidationSummary'
+import { ImportProgress } from '@/components/properties/import/ImportProgress'
 import { validateImportData, transformToApiFormat } from '@/lib/excel/validator'
 import { importProperties } from '@/lib/api/excel'
 import { ParsedExcelData, ExcelColumn, ExcelError, ExcelWarning } from '@/types/excel'
 import { toast } from 'sonner'
 
-type ImportStep = 'upload' | 'mapping' | 'preview' | 'complete'
+type ImportStep = 'upload' | 'mapping' | 'preview' | 'importing' | 'complete'
 
 export default function ImportPropertiesPage() {
   const router = useRouter()
@@ -25,6 +27,9 @@ export default function ImportPropertiesPage() {
   const [warnings, setWarnings] = useState<ExcelWarning[]>([])
   const [isImporting, setIsImporting] = useState(false)
   const [importedCount, setImportedCount] = useState(0)
+  const [importProgress, setImportProgress] = useState(0)
+  const [successCount, setSuccessCount] = useState(0)
+  const [failedCount, setFailedCount] = useState(0)
 
   const handleFileProcessed = (data: ParsedExcelData) => {
     setParsedData(data)
@@ -48,20 +53,35 @@ export default function ImportPropertiesPage() {
     if (!parsedData) return
     
     setIsImporting(true)
+    setCurrentStep('importing')
+    setImportProgress(0)
+    setSuccessCount(0)
+    setFailedCount(0)
     
     try {
-      // Transform data to API format
+      // تحويل البيانات إلى صيغة API
       const properties = transformToApiFormat(parsedData.data, mappings)
       
-      // Import via API
+      // محاكاة التقدم (في بيئة حقيقية، سيتم تلقي هذا من الـ API)
+      const totalProperties = properties.length
+      
+      // استيراد العقارات
       const result = await importProperties(properties)
       
-      setImportedCount(result.count || properties.length)
-      setCurrentStep('complete')
+      // تحديث التقدم
+      setImportProgress(totalProperties)
+      setSuccessCount(result.count || totalProperties)
+      setFailedCount(totalProperties - (result.count || totalProperties))
+      setImportedCount(result.count || totalProperties)
       
-      toast.success(`تم استيراد ${result.count || properties.length} عقار بنجاح`)
+      // الانتظار قليلاً لعرض progress bar
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      
+      setCurrentStep('complete')
+      toast.success(`تم استيراد ${result.count || totalProperties} عقار بنجاح`)
     } catch (error: any) {
       toast.error(error.message || 'فشل استيراد العقارات')
+      setCurrentStep('preview')
     } finally {
       setIsImporting(false)
     }
@@ -70,12 +90,18 @@ export default function ImportPropertiesPage() {
   const handleCancel = () => {
     if (currentStep === 'upload') {
       router.push('/dashboard/properties')
+    } else if (currentStep === 'importing') {
+      // منع الإلغاء أثناء الاستيراد
+      toast.error('لا يمكن الإلغاء أثناء الاستيراد')
     } else {
       setCurrentStep('upload')
       setParsedData(null)
       setMappings([])
       setErrors([])
       setWarnings([])
+      setImportProgress(0)
+      setSuccessCount(0)
+      setFailedCount(0)
     }
   }
 
@@ -110,11 +136,12 @@ export default function ImportPropertiesPage() {
             { key: 'upload', label: 'رفع الملف', num: 1 },
             { key: 'mapping', label: 'ربط الأعمدة', num: 2 },
             { key: 'preview', label: 'معاينة', num: 3 },
-            { key: 'complete', label: 'اكتمل', num: 4 }
+            { key: 'importing', label: 'استيراد', num: 4 },
+            { key: 'complete', label: 'اكتمل', num: 5 }
           ].map((step, index) => {
             const isActive = currentStep === step.key
-            const isCompleted = ['upload', 'mapping', 'preview', 'complete'].indexOf(currentStep) > 
-                               ['upload', 'mapping', 'preview', 'complete'].indexOf(step.key)
+            const isCompleted = ['upload', 'mapping', 'preview', 'importing', 'complete'].indexOf(currentStep) > 
+                               ['upload', 'mapping', 'preview', 'importing', 'complete'].indexOf(step.key)
             
             return (
               <div key={step.key} className="flex items-center gap-4 flex-1">
@@ -131,7 +158,7 @@ export default function ImportPropertiesPage() {
                     {step.label}
                   </span>
                 </div>
-                {index < 3 && (
+                {index < 4 && (
                   <div className={`h-1 flex-1 rounded ${isCompleted ? 'bg-green-600' : 'bg-gray-200'}`} />
                 )}
               </div>
@@ -183,14 +210,32 @@ export default function ImportPropertiesPage() {
         )}
 
         {currentStep === 'preview' && parsedData && (
-          <DataPreview
-            data={parsedData.data}
-            mappings={mappings}
-            errors={errors}
-            warnings={warnings}
-            onConfirm={handleConfirmImport}
-            onCancel={handleCancel}
-            isImporting={isImporting}
+          <>
+            {/* ملخص التحقق من البيانات */}
+            <ValidationSummary
+              totalRows={parsedData.rowCount}
+              errors={errors}
+              warnings={warnings}
+            />
+            
+            {/* معاينة البيانات */}
+            <DataPreview
+              data={parsedData.data}
+              mappings={mappings}
+              errors={errors}
+              warnings={warnings}
+              onConfirm={handleConfirmImport}
+              onCancel={handleCancel}
+              isImporting={isImporting}
+            />
+          </>
+        )}
+
+        {currentStep === 'importing' && parsedData && (
+          <ImportProgress
+            currentCount={importProgress}
+            totalCount={parsedData.rowCount}
+            isComplete={false}
           />
         )}
 
@@ -218,10 +263,10 @@ export default function ImportPropertiesPage() {
       </div>
 
       {/* Footer Actions */}
-      {currentStep !== 'complete' && currentStep !== 'preview' && (
+      {currentStep !== 'complete' && currentStep !== 'preview' && currentStep !== 'importing' && (
         <div className="flex justify-between mt-8">
           <Button variant="outline" onClick={handleCancel}>
-            إلغاء
+            {currentStep === 'upload' ? 'رجوع' : 'إلغاء'}
           </Button>
         </div>
       )}

@@ -1,10 +1,10 @@
 'use client'
 
 import { useCallback, useState } from 'react'
-import { Upload, FileSpreadsheet, X, Download } from 'lucide-react'
+import { Upload, FileSpreadsheet, X, Download, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { parseExcelFile, generateTemplate } from '@/lib/excel/parser'
+import { parseExcelFile, parseCSVFile, generateTemplate } from '@/lib/excel/parser'
 import { ParsedExcelData } from '@/types/excel'
 import { toast } from 'sonner'
 
@@ -21,7 +21,16 @@ export function ExcelUploader({ onFileProcessed }: ExcelUploaderProps) {
     setIsProcessing(true)
     
     try {
-      const parsedData = await parseExcelFile(selectedFile)
+      // تحديد نوع الملف ومعالجته
+      const extension = selectedFile.name.split('.').pop()?.toLowerCase()
+      let parsedData: any
+      
+      if (extension === 'csv') {
+        parsedData = await parseCSVFile(selectedFile)
+      } else {
+        parsedData = await parseExcelFile(selectedFile)
+      }
+      
       onFileProcessed(parsedData)
       toast.success('تم تحميل الملف بنجاح')
     } catch (error) {
@@ -36,6 +45,12 @@ export function ExcelUploader({ onFileProcessed }: ExcelUploaderProps) {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0]
     if (selectedFile) {
+      // التحقق من نوع الملف
+      const extension = selectedFile.name.split('.').pop()?.toLowerCase()
+      if (!['xlsx', 'xls', 'csv'].includes(extension || '')) {
+        toast.error('يرجى رفع ملف Excel (.xlsx, .xls) أو CSV (.csv) فقط')
+        return
+      }
       setFile(selectedFile)
       processFile(selectedFile)
     }
@@ -46,11 +61,14 @@ export function ExcelUploader({ onFileProcessed }: ExcelUploaderProps) {
     setIsDragging(false)
     
     const droppedFile = e.dataTransfer.files[0]
-    if (droppedFile && (droppedFile.name.endsWith('.xlsx') || droppedFile.name.endsWith('.xls'))) {
-      setFile(droppedFile)
-      processFile(droppedFile)
-    } else {
-      toast.error('يرجى رفع ملف Excel فقط (.xlsx أو .xls)')
+    if (droppedFile) {
+      const extension = droppedFile.name.split('.').pop()?.toLowerCase()
+      if (['xlsx', 'xls', 'csv'].includes(extension || '')) {
+        setFile(droppedFile)
+        processFile(droppedFile)
+      } else {
+        toast.error('يرجى رفع ملف Excel (.xlsx, .xls) أو CSV (.csv) فقط')
+      }
     }
   }
 
@@ -70,7 +88,7 @@ export function ExcelUploader({ onFileProcessed }: ExcelUploaderProps) {
           <div>
             <h3 className="text-lg font-semibold mb-1">رفع ملف Excel</h3>
             <p className="text-sm text-muted-foreground">
-              قم برفع ملف Excel (.xlsx أو .xls) يحتوي على بيانات العقارات
+              قم برفع ملف Excel (.xlsx, .xls) أو CSV (.csv) يحتوي على بيانات العقارات
             </p>
           </div>
           <Button variant="outline" size="sm" onClick={downloadTemplate}>
@@ -99,12 +117,12 @@ export function ExcelUploader({ onFileProcessed }: ExcelUploaderProps) {
                 اسحب الملف هنا أو اضغط للاختيار
               </p>
               <p className="text-sm text-muted-foreground">
-                يدعم ملفات .xlsx و .xls فقط
+                يدعم ملفات .xlsx, .xls, .csv
               </p>
             </div>
             <input
               type="file"
-              accept=".xlsx,.xls"
+              accept=".xlsx,.xls,.csv"
               onChange={handleFileChange}
               className="hidden"
               id="excel-upload"
@@ -120,7 +138,11 @@ export function ExcelUploader({ onFileProcessed }: ExcelUploaderProps) {
         ) : (
           <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
             <div className="flex items-center gap-3">
-              <FileSpreadsheet className="w-8 h-8 text-green-600" />
+              {file.name.endsWith('.csv') ? (
+                <FileText className="w-8 h-8 text-green-600" />
+              ) : (
+                <FileSpreadsheet className="w-8 h-8 text-green-600" />
+              )}
               <div>
                 <p className="font-medium">{file.name}</p>
                 <p className="text-sm text-muted-foreground">

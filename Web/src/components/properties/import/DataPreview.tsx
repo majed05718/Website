@@ -208,22 +208,58 @@ export function DataPreview({
                 {paginatedData.map((row, rowIndex) => {
                   const actualRowNumber = currentPage * rowsPerPage + rowIndex + 2
                   const rowErrors = errors.filter(e => e.row === actualRowNumber)
+                  const rowWarnings = warnings.filter(w => w.row === actualRowNumber)
                   const hasError = rowErrors.length > 0
+                  const hasWarning = rowWarnings.length > 0 && !hasError
+                  const isValid = !hasError && !hasWarning
+                  
+                  // تحديد لون الصف حسب الحالة
+                  const rowClassName = hasError 
+                    ? 'bg-red-50 hover:bg-red-100' 
+                    : hasWarning 
+                    ? 'bg-yellow-50 hover:bg-yellow-100' 
+                    : 'bg-green-50/30 hover:bg-green-100/50'
                   
                   return (
-                    <tr key={rowIndex} className={hasError ? 'bg-red-50' : 'hover:bg-gray-50'}>
-                      <td className="px-4 py-3 text-gray-500 font-medium whitespace-nowrap">
-                        {actualRowNumber}
+                    <tr key={rowIndex} className={rowClassName}>
+                      <td className="px-4 py-3 font-medium whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          {/* أيقونة حالة الصف */}
+                          {isValid && (
+                            <CheckCircle className="w-4 h-4 text-green-600" />
+                          )}
+                          {hasWarning && (
+                            <AlertCircle className="w-4 h-4 text-yellow-600" />
+                          )}
+                          {hasError && (
+                            <AlertCircle className="w-4 h-4 text-red-600" />
+                          )}
+                          <span className={
+                            hasError ? 'text-red-700' : 
+                            hasWarning ? 'text-yellow-700' : 
+                            'text-green-700'
+                          }>
+                            {actualRowNumber}
+                          </span>
+                        </div>
                       </td>
                       {mappedColumns.map((m, colIndex) => {
                         const originalIndex = mappings.indexOf(m)
                         const value = row[originalIndex]
                         const cellError = rowErrors.find(e => e.column === m.sourceColumn)
+                        const cellWarning = rowWarnings.find(w => w.column === m.sourceColumn)
+                        
+                        // تحديد لون الخلية
+                        const cellClassName = cellError 
+                          ? 'text-red-700 font-medium' 
+                          : cellWarning 
+                          ? 'text-yellow-700 font-medium' 
+                          : 'text-gray-900'
                         
                         return (
                           <td 
                             key={colIndex} 
-                            className={`px-4 py-3 ${cellError ? 'text-red-600 font-medium' : ''}`}
+                            className={`px-4 py-3 ${cellClassName}`}
                           >
                             <div className="max-w-xs truncate" title={String(value || '')}>
                               {value !== null && value !== undefined && value !== '' 
@@ -232,7 +268,16 @@ export function DataPreview({
                               }
                             </div>
                             {cellError && (
-                              <p className="text-xs text-red-600 mt-1">{cellError.message}</p>
+                              <p className="text-xs text-red-600 mt-1 flex items-start gap-1">
+                                <AlertCircle className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                                {cellError.message}
+                              </p>
+                            )}
+                            {cellWarning && !cellError && (
+                              <p className="text-xs text-yellow-600 mt-1 flex items-start gap-1">
+                                <AlertCircle className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                                {cellWarning.message}
+                              </p>
                             )}
                           </td>
                         )
