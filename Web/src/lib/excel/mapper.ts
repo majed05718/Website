@@ -1,176 +1,86 @@
+/**
+ * ═══════════════════════════════════════════════════════════════
+ * Excel Mapper - محول أعمدة Excel (Legacy Wrapper)
+ * ═══════════════════════════════════════════════════════════════
+ * 
+ * هذا ملف wrapper للتوافق مع الكود القديم
+ * يستخدم column-matcher.ts الجديد بشكل داخلي
+ * 
+ * @deprecated استخدم column-matcher.ts مباشرة للمشاريع الجديدة
+ */
+
 import { ExcelColumn } from '@/types/excel'
+import {
+  matchColumns,
+  SYSTEM_FIELDS,
+  type ColumnMatch,
+  type SystemField,
+} from './column-matcher'
 
-interface FieldMapping {
-  dbField: string
-  arabicNames: string[]
-  englishNames: string[]
-  aliases: string[]
-  required: boolean
-  type: 'string' | 'number' | 'boolean' | 'array'
-}
-
-const FIELD_MAPPINGS: FieldMapping[] = [
-  {
-    dbField: 'title',
-    arabicNames: ['العنوان', 'الاسم', 'عنوان العقار', 'اسم العقار'],
-    englishNames: ['title', 'name', 'property name', 'property title'],
-    aliases: ['عنوان', 'اسم'],
-    required: true,
-    type: 'string'
-  },
-  {
-    dbField: 'description',
-    arabicNames: ['الوصف', 'التفاصيل', 'تفاصيل العقار', 'الشرح'],
-    englishNames: ['description', 'details', 'info'],
-    aliases: ['وصف', 'تفصيل'],
-    required: false,
-    type: 'string'
-  },
-  {
-    dbField: 'property_type',
-    arabicNames: ['نوع العقار', 'النوع', 'التصنيف', 'فئة العقار'],
-    englishNames: ['type', 'property type', 'category'],
-    aliases: ['نوع'],
-    required: true,
-    type: 'string'
-  },
-  {
-    dbField: 'listing_type',
-    arabicNames: ['نوع العرض', 'للبيع أو الإيجار', 'نوع الإعلان', 'العرض'],
-    englishNames: ['listing type', 'for sale or rent', 'offer type'],
-    aliases: ['عرض'],
-    required: true,
-    type: 'string'
-  },
-  {
-    dbField: 'price',
-    arabicNames: ['السعر', 'المبلغ', 'القيمة', 'التكلفة'],
-    englishNames: ['price', 'amount', 'value', 'cost'],
-    aliases: ['سعر', 'مبلغ'],
-    required: true,
-    type: 'number'
-  },
-  {
-    dbField: 'area',
-    arabicNames: ['المساحة', 'المساحة الكلية', 'المساحة بالمتر', 'المساحة م²'],
-    englishNames: ['area', 'size', 'space', 'sqm'],
-    aliases: ['مساحة'],
-    required: false,
-    type: 'number'
-  },
-  {
-    dbField: 'bedrooms',
-    arabicNames: ['غرف النوم', 'عدد الغرف', 'الغرف', 'غرف'],
-    englishNames: ['bedrooms', 'rooms', 'bed', 'bedroom count'],
-    aliases: ['غرف نوم'],
-    required: false,
-    type: 'number'
-  },
-  {
-    dbField: 'bathrooms',
-    arabicNames: ['دورات المياه', 'الحمامات', 'عدد الحمامات', 'دورات'],
-    englishNames: ['bathrooms', 'bath', 'bathroom count'],
-    aliases: ['حمامات', 'دورات مياه'],
-    required: false,
-    type: 'number'
-  },
-  {
-    dbField: 'city',
-    arabicNames: ['المدينة', 'المنطقة الإدارية'],
-    englishNames: ['city', 'region'],
-    aliases: ['مدينة'],
-    required: false,
-    type: 'string'
-  },
-  {
-    dbField: 'district',
-    arabicNames: ['الحي', 'المنطقة', 'الحي السكني'],
-    englishNames: ['district', 'neighborhood', 'area'],
-    aliases: ['حي'],
-    required: false,
-    type: 'string'
-  },
-  {
-    dbField: 'location',
-    arabicNames: ['الموقع', 'العنوان الكامل', 'الموقع الجغرافي'],
-    englishNames: ['location', 'address', 'full address'],
-    aliases: ['موقع'],
-    required: false,
-    type: 'string'
-  },
-  {
-    dbField: 'status',
-    arabicNames: ['الحالة', 'حالة العقار', 'الوضع'],
-    englishNames: ['status', 'state', 'property status'],
-    aliases: ['حالة'],
-    required: false,
-    type: 'string'
-  }
-]
+// Re-export للتوافق مع الكود القديم
+export { SYSTEM_FIELDS as FIELD_MAPPINGS }
 
 /**
- * Smart auto-mapping: match Excel columns to database fields
+ * تحويل ColumnMatch إلى ExcelColumn (للتوافق مع النوع القديم)
+ */
+function convertToExcelColumn(match: ColumnMatch, systemFields: SystemField[]): ExcelColumn {
+  const field = systemFields.find(f => f.key === match.systemField)
+  
+  return {
+    sourceColumn: match.excelColumn,
+    targetField: match.systemField || '',
+    confidence: Math.round(match.confidence * 100), // تحويل من 0-1 إلى 0-100
+    required: field?.required || false,
+    type: (field?.type || 'string') as 'string' | 'number' | 'boolean' | 'array',
+  }
+}
+
+/**
+ * مطابقة تلقائية لأعمدة Excel مع حقول قاعدة البيانات
+ * 
+ * @deprecated استخدم matchColumns من column-matcher.ts
+ * @param excelColumns قائمة أعمدة Excel
+ * @returns قائمة المطابقات
  */
 export function autoMapColumns(excelColumns: string[]): ExcelColumn[] {
-  return excelColumns.map(col => {
-    const normalized = col.trim().toLowerCase()
-    
-    let bestMatch: FieldMapping | null = null
-    let confidence = 0
-    
-    for (const mapping of FIELD_MAPPINGS) {
-      // Exact match (100% confidence)
-      if (mapping.arabicNames.some(name => name.toLowerCase() === normalized)) {
-        bestMatch = mapping
-        confidence = 100
-        break
-      }
-      if (mapping.englishNames.some(name => name.toLowerCase() === normalized)) {
-        bestMatch = mapping
-        confidence = 100
-        break
-      }
-      
-      // Partial match (70% confidence)
-      const partialScore = calculatePartialMatch(normalized, mapping)
-      if (partialScore > confidence) {
-        bestMatch = mapping
-        confidence = partialScore
-      }
-    }
-    
-    return {
-      sourceColumn: col,
-      targetField: bestMatch?.dbField || '',
-      confidence,
-      required: bestMatch?.required || false,
-      type: bestMatch?.type || 'string'
-    }
-  })
-}
-
-function calculatePartialMatch(input: string, mapping: FieldMapping): number {
-  let score = 0
-  const allNames = [
-    ...mapping.arabicNames,
-    ...mapping.englishNames,
-    ...mapping.aliases
-  ].map(n => n.toLowerCase())
+  // استخدام column-matcher الجديد
+  const matches = matchColumns(excelColumns, SYSTEM_FIELDS, 0.7)
   
-  for (const name of allNames) {
-    if (input.includes(name) || name.includes(input)) {
-      score = Math.max(score, 70)
-    }
-  }
-  
-  return score
+  // تحويل إلى النوع القديم للتوافق
+  return matches.map(match => convertToExcelColumn(match, SYSTEM_FIELDS))
 }
 
 /**
- * Get list of available fields for mapping dropdown
+ * الحصول على قائمة الحقول المتاحة لقائمة الاختيار
+ * 
+ * @deprecated استخدم SYSTEM_FIELDS من column-matcher.ts
  */
-export const AVAILABLE_FIELDS = FIELD_MAPPINGS.map(m => ({
-  value: m.dbField,
-  label: m.arabicNames[0],
-  required: m.required
+export const AVAILABLE_FIELDS = SYSTEM_FIELDS.map(field => ({
+  value: field.key,
+  label: field.label,
+  required: field.required,
 }))
+
+/**
+ * ملاحظة للمطورين:
+ * ════════════════════
+ * 
+ * هذا الملف موجود للتوافق مع الكود القديم فقط.
+ * 
+ * للمشاريع الجديدة أو التحديثات، استخدم:
+ * 
+ * ```typescript
+ * import { matchColumns } from '@/lib/excel/column-matcher'
+ * 
+ * const matches = matchColumns(excelColumns)
+ * ```
+ * 
+ * المزايا:
+ * - Levenshtein Distance algorithm
+ * - نسب ثقة أدق (0-1 بدلاً من 0-100)
+ * - اقتراحات ذكية
+ * - إحصائيات متقدمة
+ * - أفضل في التعامل مع الأخطاء الإملائية
+ * 
+ * راجع: column-matcher.ts و COLUMN_MATCHER_README.md
+ */
