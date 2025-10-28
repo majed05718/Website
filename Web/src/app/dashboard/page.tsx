@@ -81,17 +81,7 @@ export default function DashboardPage() {
     return null
   }
 
-  return ( {/*
-    <div className="flex h-screen bg-gray-50">
-      {/* Sidebar }
-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-
-      {/* Main Content }
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <Header onMenuClick={() => setSidebarOpen(true)} />
-
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
-          Welcome */}
+  return (
           <div className="mb-8">
             <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">
               مرحباً، {user?.name} 👋
@@ -212,9 +202,6 @@ export default function DashboardPage() {
                 </table>
               </div>
             </CardContent>
-          </Card>{/*
-        </main>
-      </div>
-    </div>*/}
+          </Card>
   )
 }
