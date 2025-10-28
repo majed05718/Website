@@ -82,6 +82,7 @@ export default function DashboardPage() {
   }
 
   return (
+    <>
           <div className="mb-8">
             <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">
               مرحباً، {user?.name} 👋
@@ -203,5 +204,6 @@ export default function DashboardPage() {
               </div>
             </CardContent>
           </Card>
+      </>
   )
 }
