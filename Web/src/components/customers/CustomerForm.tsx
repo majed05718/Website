@@ -100,6 +100,9 @@ export function CustomerForm({ customer }: CustomerFormProps) {
     try {
       const payload = {
         ...data,
+        status: data.status as CustomerStatus,
+        type: data.type as CustomerType,
+        preferredContactMethod: data.preferredContactMethod as ContactMethod, // <--- آخر تعديل هنا
         email: data.email || undefined,
         nationalId: data.nationalId || undefined,
         city: data.city || undefined,
@@ -384,7 +387,7 @@ export function CustomerForm({ customer }: CustomerFormProps) {
           </Button>
           <Button type="submit" disabled={isSubmitting}>
             <Save className="ml-2 h-4 w-4" />
-            {isSubmitting 
+            {isSubmitting
               ? (isEditing ? 'جاري التحديث...' : 'جاري الحفظ...')
               : (isEditing ? 'تحديث العميل' : 'حفظ العميل')
             }

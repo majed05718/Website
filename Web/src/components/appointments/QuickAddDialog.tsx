@@ -54,7 +54,12 @@ export function QuickAddDialog({ open, onOpenChange, initialDate, onSuccess }: Q
   const onSubmit = async (data: QuickFormData) => {
     setIsSubmitting(true);
     try {
-      await createAppointment(data);
+      const payload = {
+        ...data,
+        type: data.type as AppointmentType, // <-- نقوم بتأكيد النوع هنا
+      };
+
+      await createAppointment(payload); // <-- نمرر الكائن الصحيح الآن
       toast.success('تم إضافة الموعد بنجاح');
       reset();
       onOpenChange(false);

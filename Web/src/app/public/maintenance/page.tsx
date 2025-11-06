@@ -53,6 +53,7 @@ export default function PublicMaintenancePage() {
     issueType: '' as IssueType,
     description: ''
   })
+type MaintenanceStatus = keyof typeof STATUS_LABELS;
 
   /**
    * إرسال الطلب
@@ -360,8 +361,8 @@ export default function PublicMaintenancePage() {
                   <p className="text-sm text-gray-600">رقم الطلب</p>
                   <p className="font-bold">{trackingInfo.requestNumber}</p>
                 </div>
-                <Badge className={STATUS_COLORS[trackingInfo.status]}>
-                  {STATUS_LABELS[trackingInfo.status]}
+                <Badge className={STATUS_COLORS[trackingInfo.status as MaintenanceStatus]}>
+                  {STATUS_LABELS[trackingInfo.status as MaintenanceStatus]}
                 </Badge>
               </div>
 

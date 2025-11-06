@@ -1,0 +1,33 @@
+module.exports = {
+  apps: [
+    {
+      name: 'backend',
+      cwd: './api',
+      script: 'dist/main.js',
+      instances: 1,
+      env: {
+        NODE_ENV: 'development',
+        PORT: 3001,
+      },
+      error_file: '/var/log/pm2/backend-error.log',
+      out_file: '/var/log/pm2/backend-out.log',
+      autorestart: true,
+      max_memory_restart: '500M',
+    },
+    {
+      name: 'frontend',
+      cwd: './Web',
+      script: 'node_modules/next/dist/bin/next',
+      args: 'start -p 3000',
+      instances: 1,
+      env: {
+        NODE_ENV: 'development',
+        PORT: 3000,
+      },
+      error_file: '/var/log/pm2/frontend-error.log',
+      out_file: '/var/log/pm2/frontend-out.log',
+      autorestart: true,
+      max_memory_restart: '500M',
+    },
+  ],
+};

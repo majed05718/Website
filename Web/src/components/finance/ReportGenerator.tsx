@@ -248,8 +248,8 @@ export function ReportGenerator({ onGenerate }: ReportGeneratorProps) {
                     onClick={() => setFormat('excel')}
                     className={`flex-1 p-4 rounded-lg border-2 transition-all ${
                       format === 'excel'
-                        : 'border-blue-500 bg-blue-50'
-                        ? 'border-gray-200 hover:border-gray-300'
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 hover:border-gray-300'
                     }`}
                   >
                     <div className="font-medium">Excel</div>

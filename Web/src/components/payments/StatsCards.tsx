@@ -58,22 +58,22 @@ export function StatsCards({ stats, isLoading }: StatsCardsProps) {
         
         <div className="space-y-2">
           <p className="text-2xl font-bold text-gray-900">
-            {stats.totalThisMonth.toLocaleString()} ريال
+            {stats.totalPayments.current.toLocaleString()} ريال
           </p>
           
           {/* مقارنة بالشهر السابق */}
           <div className="flex items-center gap-1">
-            {stats.percentageChange > 0 ? (
+            {stats.totalPayments.change > 0 ? (
               <ArrowUp className="w-4 h-4 text-green-600" />
-            ) : stats.percentageChange < 0 ? (
+            ) : stats.totalPayments.change < 0 ? (
               <ArrowDown className="w-4 h-4 text-red-600" />
             ) : null}
             <span className={`text-sm font-medium ${
-              stats.percentageChange > 0 ? 'text-green-600' :
-              stats.percentageChange < 0 ? 'text-red-600' :
+              stats.totalPayments.change > 0 ? 'text-green-600' :
+              stats.totalPayments.change < 0 ? 'text-red-600' :
               'text-gray-600'
             }`}>
-              {Math.abs(stats.percentageChange)}%
+              {Math.abs(stats.totalPayments.change)}%
             </span>
             <span className="text-xs text-gray-500">
               عن الشهر السابق
@@ -97,10 +97,10 @@ export function StatsCards({ stats, isLoading }: StatsCardsProps) {
         
         <div className="space-y-2">
           <p className="text-2xl font-bold text-gray-900">
-            {stats.totalDue.toLocaleString()} ريال
+            {stats.duePayments.amount.toLocaleString()} ريال
           </p>
           <p className="text-sm text-gray-600">
-            {stats.dueCount} فاتورة
+            {stats.duePayments.count} فاتورة
           </p>
         </div>
       </Card>
@@ -120,14 +120,14 @@ export function StatsCards({ stats, isLoading }: StatsCardsProps) {
         
         <div className="space-y-2">
           <p className="text-2xl font-bold text-red-900">
-            {stats.totalOverdue.toLocaleString()} ريال
+            {stats.overduePayments.amount.toLocaleString()} ريال
           </p>
           <p className="text-sm text-red-600">
-            {stats.overdueCount} فاتورة
+            {stats.overduePayments.count} فاتورة
           </p>
-          {stats.oldestOverdueDays > 0 && (
+          {stats.overduePayments.oldest > 0 && (
             <p className="text-xs text-red-500">
-              أقدم فاتورة: {stats.oldestOverdueDays} يوم
+              أقدم فاتورة: {stats.overduePayments.oldest} يوم
             </p>
           )}
         </div>
@@ -142,7 +142,7 @@ export function StatsCards({ stats, isLoading }: StatsCardsProps) {
             </p>
           </div>
           <div className="p-3 bg-green-50 rounded-lg">
-            {stats.collectionTrend === 'up' ? (
+            {stats.collectionRate.trend === 'up' ? (
               <TrendingUp className="w-6 h-6 text-green-600" />
             ) : (
               <TrendingDown className="w-6 h-6 text-red-600" />
@@ -152,23 +152,23 @@ export function StatsCards({ stats, isLoading }: StatsCardsProps) {
         
         <div className="space-y-2">
           <p className="text-2xl font-bold text-gray-900">
-            {stats.collectionRate}%
+            {stats.collectionRate.percentage}%
           </p>
           <div className="flex items-center gap-2">
             <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
               <div 
                 className={`h-full ${
-                  stats.collectionRate >= 80 ? 'bg-green-500' :
-                  stats.collectionRate >= 60 ? 'bg-yellow-500' :
+                  stats.collectionRate.percentage >= 80 ? 'bg-green-500' :
+                  stats.collectionRate.percentage >= 60 ? 'bg-yellow-500' :
                   'bg-red-500'
                 }`}
-                style={{ width: `${stats.collectionRate}%` }}
+                style={{ width: `${stats.collectionRate.percentage}%` }}
               />
             </div>
             <span className={`text-xs font-medium ${
-              stats.collectionTrend === 'up' ? 'text-green-600' : 'text-red-600'
+              stats.collectionRate.trend === 'up' ? 'text-green-600' : 'text-red-600'
             }`}>
-              {stats.collectionTrend === 'up' ? '↑' : '↓'}
+              {stats.collectionRate.trend === 'up' ? '↑' : '↓'}
             </span>
           </div>
         </div>

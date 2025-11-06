@@ -297,7 +297,6 @@ export interface ReportConfig {
   includeCharts: boolean
   chartTypes?: string[]
   format: ReportFormat
-  includeCharts?: boolean
   includeCover?: boolean
   includeTOC?: boolean
   includeSummary?: boolean

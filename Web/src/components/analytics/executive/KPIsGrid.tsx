@@ -36,7 +36,7 @@ export function KPIsGrid({ kpis, isLoading }: KPIsGridProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       {kpis.map((kpi) => {
-        const isAboveTarget = kpi.target && kpi.value > kpi.target
+        const isAboveTarget = kpi.target && Number(kpi.value) > kpi.target
         const percentageOfTarget = kpi.target 
           ? ((Number(kpi.value) / kpi.target) * 100).toFixed(0)
           : null
