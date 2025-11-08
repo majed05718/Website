@@ -32,7 +32,7 @@ export class ExcelService {
     @InjectRepository(Customer)
     private customerRepository: Repository<Customer>,
     private dataSource: DataSource,
-  ) {}
+  ) { }
 
   /**
    * ═══════════════════════════════════════════════════════════════
@@ -72,7 +72,7 @@ export class ExcelService {
       }
 
       // 5. معالجة البيانات الصحيحة فقط
-      const validData = mappedData.filter((_, index) => 
+      const validData = mappedData.filter((_, index) =>
         validationResults[index].isValid
       );
 
@@ -120,7 +120,7 @@ export class ExcelService {
 
       mapping.forEach(map => {
         const excelValue = row[map.excelColumn];
-        
+
         // تطبيق التحويل إذا وجد
         if (excelValue !== undefined && excelValue !== null) {
           mappedRow[map.systemField] = this.transformValue(
@@ -149,20 +149,20 @@ export class ExcelService {
     switch (field) {
       case 'phone':
         return this.normalizePhoneNumber(value);
-      
+
       case 'email':
         return value.toLowerCase();
-      
+
       case 'type':
         return this.normalizeCustomerType(value);
-      
+
       case 'status':
         return value.toLowerCase();
-      
+
       case 'budgetMin':
       case 'budgetMax':
         return this.parseNumber(value);
-      
+
       default:
         return value;
     }
@@ -175,20 +175,20 @@ export class ExcelService {
    */
   private normalizePhoneNumber(phone: string): string {
     if (!phone) return phone;
-    
+
     // إزالة المسافات والرموز
     phone = phone.replace(/[\s\-\(\)]/g, '');
-    
+
     // تحويل 05XXXXXXXX إلى +9665XXXXXXXX
     if (phone.startsWith('05')) {
       phone = '+966' + phone.substring(1);
     }
-    
+
     // إضافة +966 إذا كان يبدأ بـ 5
     if (phone.startsWith('5') && phone.length === 9) {
       phone = '+966' + phone;
     }
-    
+
     return phone;
   }
 
@@ -199,7 +199,7 @@ export class ExcelService {
    */
   private normalizeCustomerType(type: string): string {
     if (!type) return type;
-    
+
     const typeMap: Record<string, string> = {
       'مشتري': 'buyer',
       'buyer': 'buyer',
@@ -210,7 +210,7 @@ export class ExcelService {
       'مالك': 'landlord',
       'landlord': 'landlord'
     };
-    
+
     return typeMap[type.toLowerCase()] || type.toLowerCase();
   }
 
@@ -223,11 +223,11 @@ export class ExcelService {
     if (value === undefined || value === null || value === '') {
       return undefined;
     }
-    
-    const num = typeof value === 'string' 
+
+    const num = typeof value === 'string'
       ? parseFloat(value.replace(/,/g, ''))
       : Number(value);
-    
+
     return isNaN(num) ? undefined : num;
   }
 
@@ -407,7 +407,7 @@ export class ExcelService {
     handling: 'skip' | 'update' | 'error'
   ): Promise<Map<string, { isDuplicate: boolean; existingId?: string }>> {
     const phones = data.map(d => d.phone).filter(Boolean);
-    
+
     // جلب العملاء الموجودين بنفس أرقام الهواتف
     const existingCustomers = await this.customerRepository.find({
       where: { phone: In(phones) },
@@ -415,7 +415,7 @@ export class ExcelService {
     });
 
     const duplicateMap = new Map<string, { isDuplicate: boolean; existingId?: string }>();
-    
+
     existingCustomers.forEach(customer => {
       duplicateMap.set(customer.phone, {
         isDuplicate: true,
@@ -456,7 +456,7 @@ export class ExcelService {
 
     for (let i = 0; i < batches.length; i++) {
       const batch = batches[i];
-      
+
       // استخدام transaction لكل دفعة
       await this.dataSource.transaction(async (manager) => {
         for (const row of batch) {
@@ -514,8 +514,15 @@ export class ExcelService {
       address: data.address,
       budgetMin: data.budgetMin,
       budgetMax: data.budgetMax,
-      preferredCities: data.preferredCities,
-      preferredPropertyTypes: data.preferredPropertyTypes,
+
+      preferredCities: data.preferredCities
+        ? data.preferredCities.split(',').map(city => city.trim())
+        : undefined,
+
+      preferredPropertyTypes: data.preferredPropertyTypes
+        ? data.preferredPropertyTypes.split(',').map(type => type.trim())
+        : undefined,
+        
       source: data.source,
       assignedStaff: data.assignedStaff,
       notes: data.notes
@@ -650,7 +657,7 @@ export class ExcelService {
 
       // 7. توليد buffer
       const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
-      
+
       this.logger.log('تم التصدير بنجاح');
       return buffer;
 
@@ -739,7 +746,7 @@ export class ExcelService {
 
     return customers.map(customer => {
       const row: any = {};
-      
+
       columns.forEach(col => {
         const label = columnLabels[col] || col;
         let value = customer[col as keyof Customer];
@@ -812,7 +819,7 @@ export class ExcelService {
     // ألوان متناوبة للصفوف
     for (let row = 1; row <= rowCount; row++) {
       const bgColor = row % 2 === 0 ? 'F5F5F5' : 'FFFFFF';
-      
+
       for (let col = range.s.c; col <= range.e.c; col++) {
         const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
         if (!ws[cellAddress]) continue;
@@ -949,12 +956,12 @@ export class ExcelService {
 
     // إنشاء Excel قالب فارغ
     const wb = XLSX.utils.book_new();
-    
+
     const headers = template.fields.map(f => f.label);
     const examples = template.fields.map(f => f.example || '');
-    
+
     const ws = XLSX.utils.aoa_to_sheet([headers, examples]);
-    
+
     XLSX.utils.book_append_sheet(wb, ws, 'البيانات');
 
     return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });

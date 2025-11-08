@@ -27,7 +27,7 @@ import { ExportCustomersDto, ExportTemplateDto } from './dto/export-customers.dt
 export class ExcelController {
   private readonly logger = new Logger(ExcelController.name);
 
-  constructor(private readonly excelService: ExcelService) {}
+  constructor(private readonly excelService: ExcelService) { }
 
   /**
    * ═══════════════════════════════════════════════════════════════
@@ -160,10 +160,17 @@ export class ExcelController {
     @Res() res: Response
   ) {
     this.logger.log('تلقي طلب تصدير Excel');
+    const rawFilters = dto.filters || {};
+    const processedFilters = {
+      ...rawFilters,
+      // نقوم بتحويل التواريخ من نص إلى كائن تاريخ حقيقي
+      dateFrom: rawFilters.dateFrom ? new Date(rawFilters.dateFrom) : undefined,
+      dateTo: rawFilters.dateTo ? new Date(rawFilters.dateTo) : undefined,
+    };
 
     try {
       const buffer = await this.excelService.exportCustomersToExcel(
-        dto.filters || {},
+        processedFilters, // <-- نمرر الفلاتر المعالجة الآن
         dto.columns,
         {
           includeStatistics: dto.includeStatistics || false,
@@ -350,8 +357,8 @@ export class ExcelController {
       message: isValidType && isValidSize
         ? 'الملف صالح للرفع'
         : !isValidType
-        ? 'نوع الملف غير مدعوم'
-        : 'حجم الملف يتجاوز الحد المسموح (10MB)'
+          ? 'نوع الملف غير مدعوم'
+          : 'حجم الملف يتجاوز الحد المسموح (10MB)'
     };
   }
 
