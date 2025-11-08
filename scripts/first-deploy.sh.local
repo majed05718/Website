@@ -1,0 +1,89 @@
+#!/bin/bash
+
+echo "🎉 بدء النشر..."
+echo ""
+
+# Check .env files
+if [ ! -f "api/.env" ]; then
+    echo "❌ api/.env مفقود"
+    exit 1
+fi
+
+if [ ! -f "Web/.env.local" ]; then
+    echo "❌ Web/.env.local مفقود"
+    exit 1
+fi
+
+echo "✅ ملفات Environment موجودة"
+echo ""
+
+# Backend
+echo "📦 Backend..."
+cd api
+npm install --production
+npm run build
+cd ..
+echo "✅ Backend جاهز"
+echo ""
+
+# Frontend
+echo "📦 Frontend..."
+cd Web
+npm install --production
+npm run build
+cd ..
+echo "✅ Frontend جاهز"
+echo ""
+
+# PM2 Config
+echo "⚙️  إنشاء PM2 config..."
+cat > ecosystem.config.js << 'EOFPM2'
+module.exports = {
+  apps: [
+    {
+      name: 'backend',
+      cwd: './api',
+      script: 'dist/main.js',
+      instances: 1,
+      env: {
+        NODE_ENV: 'production',
+        PORT: 3001,
+      },
+      error_file: '/var/log/pm2/backend-error.log',
+      out_file: '/var/log/pm2/backend-out.log',
+      autorestart: true,
+      max_memory_restart: '500M',
+    },
+    {
+      name: 'frontend',
+      cwd: './Web',
+      script: 'node_modules/next/dist/bin/next',
+      args: 'start -p 3000',
+      instances: 1,
+      env: {
+        NODE_ENV: 'production',
+        PORT: 3000,
+      },
+      error_file: '/var/log/pm2/frontend-error.log',
+      out_file: '/var/log/pm2/frontend-out.log',
+      autorestart: true,
+      max_memory_restart: '500M',
+    },
+  ],
+};
+EOFPM2
+
+# Create logs dir
+sudo mkdir -p /var/log/pm2
+sudo chown -R $USER:$USER /var/log/pm2
+
+# Start PM2
+echo "🚀 بدء الخدمات..."
+pm2 start ecosystem.config.js
+pm2 save
+pm2 startup
+
+echo ""
+echo "✅ اكتمل النشر!"
+echo ""
+pm2 status

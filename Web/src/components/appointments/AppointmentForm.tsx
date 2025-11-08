@@ -83,6 +83,7 @@ export function AppointmentForm({ appointment, initialDate }: AppointmentFormPro
     try {
       const payload = {
         ...data,
+        type: data.type as AppointmentType, 
         description: data.description || undefined,
         location: data.location || undefined,
         meetingLink: data.meetingLink || undefined,

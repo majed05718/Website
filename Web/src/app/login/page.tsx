@@ -34,13 +34,15 @@ export default function LoginPage() {
     setIsLoading(true)
     try {
       // ⚠️ Development only - skip API validation
-      const mockUser = {
-        id: 'dev-user-123',
-        name: 'مستخدم تجريبي',
-        phone: data.phone,
-        role: 'manager',
-        officeId: 'dev-office-456'
-      }
+const mockUser = {
+  id: '1-mock',
+  name: 'Majed Admin',
+  phone: '0500000000',
+  role: 'admin',
+  officeId: 'office-1',
+  email: 'mock.user@example.com', // <-- السطر المضاف
+};
+
       const mockToken = 'dev-token-' + Date.now()
 
       // Save to Zustand store
