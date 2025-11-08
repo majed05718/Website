@@ -1,43 +1,23 @@
 module.exports = {
   apps: [
     {
-      name: 'backend',
-      cwd: './api',
-      script: 'dist/main.js',
-      instances: 1,
-      exec_mode: 'cluster',
+      name: 'dev-api',
+      script: './dist/main.js', // المسار النسبي من cwd
+      cwd: './api', // <-- أهم سطر: حدد مجلد العمل هنا
+      watch: false,
       env: {
         NODE_ENV: 'production',
-        PORT: 3001,
       },
-      error_file: '/var/log/pm2/backend-error.log',
-      out_file: '/var/log/pm2/backend-out.log',
-      log_date_format: 'YYYY-MM-DD HH:mm:ss',
-      merge_logs: true,
-      autorestart: true,
-      max_memory_restart: '500M',
-      min_uptime: '10s',
-      max_restarts: 10,
     },
     {
-      name: 'frontend',
-      cwd: './Web',
-      script: 'node_modules/next/dist/bin/next',
-      args: 'dev -p 3000',
-      instances: 1,
-      exec_mode: 'cluster',
+      name: 'dev-frontend',
+      script: 'npm',
+      args: 'start', // <-- سنضع البورت في package.json
+      cwd: './Web', // <-- أهم سطر: حدد مجلد العمل هنا
+      watch: false,
       env: {
-        NODE_ENV: 'development',
-        PORT: 3000,
+        NODE_ENV: 'production',
       },
-      error_file: '/var/log/pm2/frontend-error.log',
-      out_file: '/var/log/pm2/frontend-out.log',
-      log_date_format: 'YYYY-MM-DD HH:mm:ss',
-      merge_logs: true,
-      autorestart: true,
-      max_memory_restart: '500M',
-      min_uptime: '10s',
-      max_restarts: 10,
     },
   ],
 };
