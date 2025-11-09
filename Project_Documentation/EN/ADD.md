@@ -3,6 +3,25 @@
 - **Generated**: 2025-11-09 19:56 UTC
 - **Scope**: Captures architectural layers, dependencies, and cross-cutting concerns of the Real Estate Management System.
 
+## Environment Topology (2025-11-09 Update)
+
+```
+┌───────────────────────┐        ┌────────────────────────┐
+│  Production Tier       │        │  Staging Tier           │
+│  - Branch: main        │        │  - Branch: develop      │
+│  - PM2: api-prod       │        │  - PM2: api-staging     │
+│          web-prod      │        │          web-staging    │
+│  - Env: .env.production│        │  - Env: .env.staging    │
+│  - Hosts: api.example.com /     │  - Hosts: api-staging.example.com /
+│           app.example.com       │           staging.example.com      │
+└───────────────────────┘        └────────────────────────┘
+```
+
+- **Config strategy**: Both tiers share the same codebase; switching is governed by `APP_ENV`, PM2 interpreter args, and environment files under `api/config/env` & `Web/config/env` (see CIP §1.3).  
+- **Deployment flow**: feature branches merge into `develop` → auto-deploy staging; release candidates are promoted to `main` → production.  
+- **Observability**: staging mirrors production logging, bundle analyzer reports, and Lighthouse budgets before promotion.  
+- **Data access**: Supabase service-role keys are segregated per environment; staging never reuses production credentials.
+
 ## System Overview
 The solution adopts a modular NestJS backend paired with a Next.js frontend. Supabase provides database, authentication, and file storage. Domain modules encapsulate bounded contexts such as Properties, Customers, and Payments.
 

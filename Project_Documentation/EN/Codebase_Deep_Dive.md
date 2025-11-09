@@ -3,6 +3,15 @@
 - **Generated**: 2025-11-09 19:56 UTC
 - **Purpose**: Serve as an exhaustive onboarding manual describing every major file.
 
+## Runtime Stabilization Highlights (2025-11-09)
+
+- **Frontend hydration fix**: `Web/src/app/dashboard/layout.tsx` now depends on `useAuthStore((s) => s.hydrated)` to avoid full-screen spinners; `Web/src/store/auth-store.ts` introduces `hydrated` state and `markHydrated` hook.  
+- **Noise-free axios client**: Logging inside `Web/src/lib/api.ts` is restricted to non-production environments, preventing performance degradation on production builds.  
+- **Environment-aware bootstrapping**: `api/src/app.module.ts` loads `.env.${APP_ENV}`; PM2 definitions (`ecosystem.prod.config.js`, `ecosystem.dev.config.js`) inject `APP_ENV` and `CONFIG_PATH`.  
+- **Index roadmap**: `api/src/properties/properties.service.ts`, `api/src/payments/payments.service.ts`, and `api/src/appointments/appointments.service.ts` drive the new Supabase indexes listed in `Project_Documentation/EN/CIP.md` §2.2.  
+- **Perf tooling**: Bundle analyzer integration is configured through `Web/next.config.js` and `Web/package.json` (`"analyze": "ANALYZE=true next build"`), enabling staging regressions to be caught pre-release.  
+- **Security alignment**: Auth roadmap (access/refresh tokens, HttpOnly cookies) is tracked in `api/src/auth/*`; validation coverage enforced via DTOs implementing `class-validator`.
+
 ## Analytics Module Deep Dive
 - Summary: Aggregates Supabase analytics routines powering dashboards, KPIs, and executive summaries.
 

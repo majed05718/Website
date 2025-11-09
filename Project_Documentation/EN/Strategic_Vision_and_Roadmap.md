@@ -3,6 +3,23 @@
 - **Generated**: 2025-11-09 19:56 UTC
 - **Purpose**: Chart the evolutionary path for scalability, resilience, and advanced capabilities.
 
+## Phase Alignment with CIP (2025-11-09)
+
+1. **Phase 1 — Stabilization & Environment Setup**  
+   - Ship the hydration fix for `Web/src/app/dashboard/layout.tsx` and the `useAuthStore` hydration flag.  
+   - Stand-up staging infrastructure (`/var/www/real-estate-dev`) driven by the `develop` branch with PM2 configs (`ecosystem.dev.config.js`).  
+   - Enforce environment-aware configuration (`APP_ENV`, `.env.production`, `.env.staging`) across API and Web.  
+
+2. **Phase 2 — Performance Optimization on Staging**  
+   - Integrate bundle analyzer & Lighthouse CI; block merges if `/dashboard` exceeds FCP/TTI budgets.  
+   - Apply Supabase indexes listed in CIP §2.2 to `properties`, `appointments`, `rental_payments`, `payment_alerts`.  
+   - Introduce streaming dashboard shell (`Web/src/app/dashboard/loading.tsx`) and debounced filter logic.  
+
+3. **Phase 3 — Security & Data Integrity**  
+   - Implement access/refresh token rotation with HttpOnly cookies (`api/src/auth`).  
+   - Audit DTO validation coverage (`class-validator`) for all customer-facing endpoints.  
+   - Harden Supabase RLS policies per environment and document JWT hardening steps (`docs/security/jwt-hardening.md`).
+
 ## Scalability Pathways
 - Reorganize the monolith into a modular monolith by grouping feature modules beneath feature-specific Nest modules and registering them lazily from `app.module.ts`.
 - Introduce caching tiers (Redis or Supabase edge functions) wrapping `PropertiesService.findAll` and `CustomersService.findAll` to amortize complex filtering.
