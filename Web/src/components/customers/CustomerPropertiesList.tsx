@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { Home, Eye, MapPin, DollarSign, Calendar, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -79,11 +80,16 @@ export function CustomerPropertiesList({
           <div className="flex items-start gap-4">
             {/* Property Image */}
             {property.propertyImage ? (
-              <img
-                src={property.propertyImage}
-                alt={property.propertyTitle}
-                className="w-24 h-24 object-cover rounded-lg flex-shrink-0"
-              />
+              <div className="relative w-24 h-24 flex-shrink-0 overflow-hidden rounded-lg">
+                <Image
+                  src={property.propertyImage}
+                  alt={property.propertyTitle || 'صورة العقار'}
+                  fill
+                  className="object-cover"
+                  sizes="96px"
+                  loading="lazy"
+                />
+              </div>
             ) : (
               <div className="w-24 h-24 bg-gray-200 rounded-lg flex items-center justify-center flex-shrink-0">
                 <Home className="h-8 w-8 text-gray-400" />
