@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Req, Res, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Body, Req, Res, UseGuards, HttpCode, HttpStatus, UnauthorizedException } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -15,8 +15,6 @@ import { Public } from './decorators/public.decorator';
  * - POST /auth/refresh - Refresh access token (PUBLIC)
  * - POST /auth/logout - User logout (PROTECTED)
  * - POST /auth/profile - Get user profile (PROTECTED)
- * 
- * TODO: Implement controller methods once AuthService is complete
  */
 @Controller('auth')
 export class AuthController {
@@ -26,19 +24,55 @@ export class AuthController {
    * Login endpoint - PUBLIC (no authentication required)
    * 
    * @param loginDto - Login credentials
+   * @param req - Express request for device info
    * @param res - Express response for setting HttpOnly cookies
    * @returns Access token and user info
    */
   @Public() // Exempt from global JWT guard
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  async login(@Body() loginDto: LoginDto, @Res({ passthrough: true }) res: Response) {
-    // TODO: Implement login
+  async login(
+    @Body() loginDto: LoginDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     // 1. Validate user credentials
+    const user = await this.authService.validateUser(loginDto.email, loginDto.password);
+    
+    if (!user) {
+      throw new UnauthorizedException('البريد الإلكتروني أو كلمة المرور غير صحيحة');
+    }
+    
     // 2. Generate access and refresh tokens
-    // 3. Set refresh token as HttpOnly cookie
+    const deviceInfo = {
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+    };
+    
+    const { accessToken, refreshToken } = await this.authService.login(user, deviceInfo);
+    
+    // 3. Set refresh token as HttpOnly cookie (7 days)
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production', // HTTPS only in production
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      path: '/',
+    });
+    
     // 4. Return access token and user info
-    throw new Error('Not implemented - login endpoint');
+    return {
+      success: true,
+      accessToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        officeId: user.office_id,
+      },
+      message: 'تم تسجيل الدخول بنجاح',
+    };
   }
 
   /**
@@ -53,12 +87,32 @@ export class AuthController {
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    // TODO: Implement token refresh
     // 1. Extract user ID and refresh token from request (populated by RefreshAuthGuard)
+    const userId = req.user['sub'];
+    const oldRefreshToken = req.cookies['refreshToken'];
+    
+    if (!oldRefreshToken) {
+      throw new UnauthorizedException('رمز التحديث مفقود');
+    }
+    
     // 2. Generate new access and refresh tokens
+    const { accessToken, refreshToken } = await this.authService.refreshTokens(userId, oldRefreshToken);
+    
     // 3. Set new refresh token as HttpOnly cookie
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      path: '/',
+    });
+    
     // 4. Return new access token
-    throw new Error('Not implemented - refresh endpoint');
+    return {
+      success: true,
+      accessToken,
+      message: 'تم تحديث الجلسة بنجاح',
+    };
   }
 
   /**
@@ -76,12 +130,29 @@ export class AuthController {
     @Body() logoutDto: LogoutDto,
     @Res({ passthrough: true }) res: Response,
   ) {
-    // TODO: Implement logout
     // 1. Extract user ID from request
+    const userId = req.user['sub'] || req.user['user_id'] || req.user['id'];
+    
     // 2. Revoke refresh token(s) based on logoutDto.logoutFrom
+    const refreshToken = logoutDto.logoutFrom === 'current' ? req.cookies['refreshToken'] : undefined;
+    
+    await this.authService.logout(userId, refreshToken);
+    
     // 3. Clear refresh token cookie
+    res.clearCookie('refreshToken', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/',
+    });
+    
     // 4. Return success message
-    throw new Error('Not implemented - logout endpoint');
+    return {
+      success: true,
+      message: logoutDto.logoutFrom === 'all' 
+        ? 'تم تسجيل الخروج من جميع الأجهزة بنجاح'
+        : 'تم تسجيل الخروج بنجاح',
+    };
   }
 
   /**
@@ -93,10 +164,17 @@ export class AuthController {
   @Post('profile')
   @UseGuards(JwtAuthGuard)
   async getProfile(@Req() req: Request) {
-    // TODO: Implement profile endpoint
-    // 1. Extract user from request (populated by JwtAuthGuard)
-    // 2. Fetch full user details from database
-    // 3. Return user profile
-    throw new Error('Not implemented - profile endpoint');
+    // User info is populated by JwtAuthGuard
+    const user = req.user;
+    
+    return {
+      success: true,
+      user: {
+        id: user['sub'] || user['id'],
+        email: user['email'],
+        role: user['role'],
+        officeId: user['officeId'] || user['office_id'],
+      },
+    };
   }
 }

@@ -1,34 +1,20 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
+import { SupabaseService } from '../supabase/supabase.service';
 
 /**
  * Authentication Service
  * 
  * Handles user authentication, token generation, and refresh token management
- * 
- * TODO: Implement the following methods:
- * - validateUser(email: string, password: string)
- * - login(user: any)
- * - generateTokens(user: any)
- * - generateAccessToken(user: any)
- * - generateRefreshToken(user: any)
- * - refreshTokens(userId: string, refreshToken: string)
- * - revokeRefreshToken(userId: string, refreshToken?: string)
- * - revokeAllRefreshTokens(userId: string)
- * - storeRefreshToken(userId: string, refreshToken: string, deviceInfo?: any)
- * - verifyRefreshToken(userId: string, refreshToken: string)
- * - cleanExpiredTokens()
+ * Uses Supabase for database operations until TypeORM migration is complete
  */
 @Injectable()
 export class AuthService {
   constructor(
     private readonly jwtService: JwtService,
-    // TODO: Inject TypeORM repository for RefreshToken entity
-    // private readonly refreshTokenRepository: Repository<RefreshToken>,
-    // TODO: Inject repository for User entity
-    // private readonly userRepository: Repository<User>,
+    private readonly supabaseService: SupabaseService,
   ) {}
 
   /**
@@ -39,11 +25,34 @@ export class AuthService {
    * @returns User object if valid, null otherwise
    */
   async validateUser(email: string, password: string): Promise<any> {
-    // TODO: Implement user validation
-    // 1. Find user by email
-    // 2. Compare password with bcrypt
-    // 3. Return user without password field
-    throw new Error('Not implemented - validateUser');
+    const supabase = this.supabaseService.getClient();
+    
+    // Find user by email
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .single();
+
+    if (error || !user) {
+      return null;
+    }
+
+    // Check if user is active
+    if (user.status !== 'active') {
+      throw new UnauthorizedException('حساب المستخدم غير نشط');
+    }
+
+    // Compare password with bcrypt hash
+    const isPasswordValid = await bcrypt.compare(password, user.password_hash);
+    
+    if (!isPasswordValid) {
+      return null;
+    }
+
+    // Return user without password field
+    const { password_hash, ...result } = user;
+    return result;
   }
 
   /**
@@ -54,11 +63,26 @@ export class AuthService {
    * @returns Access token and refresh token
    */
   async login(user: any, deviceInfo?: any): Promise<{ accessToken: string; refreshToken: string }> {
-    // TODO: Implement login
-    // 1. Generate access and refresh tokens
-    // 2. Store refresh token in database
-    // 3. Return tokens
-    throw new Error('Not implemented - login');
+    const payload = this.getTokenPayload(user);
+    
+    // Generate access token (15 minutes)
+    const accessToken = this.jwtService.sign(payload, {
+      expiresIn: process.env.JWT_EXPIRES_IN || '15m',
+    });
+    
+    // Generate refresh token (7 days)
+    const refreshToken = this.jwtService.sign(
+      { sub: user.id, type: 'refresh' },
+      {
+        secret: process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET || 'default-refresh-secret',
+        expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+      }
+    );
+    
+    // Store refresh token in database
+    await this.storeRefreshToken(user.id, refreshToken, deviceInfo);
+    
+    return { accessToken, refreshToken };
   }
 
   /**
@@ -69,13 +93,47 @@ export class AuthService {
    * @returns New access token and refresh token
    */
   async refreshTokens(userId: string, refreshToken: string): Promise<{ accessToken: string; refreshToken: string }> {
-    // TODO: Implement token refresh
-    // 1. Verify refresh token is valid and not expired
-    // 2. Revoke old refresh token
-    // 3. Generate new access and refresh tokens
-    // 4. Store new refresh token
-    // 5. Return new tokens
-    throw new Error('Not implemented - refreshTokens');
+    // Verify refresh token is valid and not expired
+    const isValid = await this.verifyRefreshToken(userId, refreshToken);
+    
+    if (!isValid) {
+      throw new UnauthorizedException('رمز التحديث غير صالح أو منتهي الصلاحية');
+    }
+    
+    // Get user details
+    const supabase = this.supabaseService.getClient();
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('id, email, role, office_id, status')
+      .eq('id', userId)
+      .single();
+      
+    if (error || !user || user.status !== 'active') {
+      throw new UnauthorizedException('المستخدم غير موجود أو غير نشط');
+    }
+    
+    // Revoke old refresh token
+    await this.revokeRefreshToken(userId, refreshToken);
+    
+    // Generate new tokens
+    const payload = this.getTokenPayload(user);
+    
+    const accessToken = this.jwtService.sign(payload, {
+      expiresIn: process.env.JWT_EXPIRES_IN || '15m',
+    });
+    
+    const newRefreshToken = this.jwtService.sign(
+      { sub: user.id, type: 'refresh' },
+      {
+        secret: process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET || 'default-refresh-secret',
+        expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+      }
+    );
+    
+    // Store new refresh token
+    await this.storeRefreshToken(user.id, newRefreshToken);
+    
+    return { accessToken, refreshToken: newRefreshToken };
   }
 
   /**
@@ -85,10 +143,101 @@ export class AuthService {
    * @param refreshToken - Optional refresh token to revoke (if not provided, revoke all)
    */
   async logout(userId: string, refreshToken?: string): Promise<void> {
-    // TODO: Implement logout
-    // 1. If refreshToken provided, revoke that specific token
-    // 2. If not provided, revoke all tokens for user
-    throw new Error('Not implemented - logout');
+    if (refreshToken) {
+      // Revoke specific token
+      await this.revokeRefreshToken(userId, refreshToken);
+    } else {
+      // Revoke all tokens for user
+      await this.revokeAllRefreshTokens(userId);
+    }
+  }
+
+  /**
+   * Revoke a specific refresh token
+   * 
+   * @param userId - User ID
+   * @param refreshToken - Refresh token to revoke
+   */
+  private async revokeRefreshToken(userId: string, refreshToken: string): Promise<void> {
+    const supabase = this.supabaseService.getClient();
+    const tokenHash = this.hashToken(refreshToken);
+    
+    await supabase
+      .from('refresh_tokens')
+      .update({
+        is_revoked: true,
+        revoked_at: new Date().toISOString(),
+      })
+      .eq('user_id', userId)
+      .eq('token_hash', tokenHash);
+  }
+
+  /**
+   * Revoke all refresh tokens for a user
+   * 
+   * @param userId - User ID
+   */
+  private async revokeAllRefreshTokens(userId: string): Promise<void> {
+    const supabase = this.supabaseService.getClient();
+    
+    await supabase
+      .from('refresh_tokens')
+      .update({
+        is_revoked: true,
+        revoked_at: new Date().toISOString(),
+      })
+      .eq('user_id', userId)
+      .eq('is_revoked', false);
+  }
+
+  /**
+   * Store refresh token in database
+   * 
+   * @param userId - User ID
+   * @param refreshToken - Refresh token to store
+   * @param deviceInfo - Optional device information
+   */
+  private async storeRefreshToken(userId: string, refreshToken: string, deviceInfo?: any): Promise<void> {
+    const supabase = this.supabaseService.getClient();
+    const tokenHash = this.hashToken(refreshToken);
+    
+    // Calculate expiration date (7 days from now)
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+    
+    await supabase
+      .from('refresh_tokens')
+      .insert({
+        user_id: userId,
+        token_hash: tokenHash,
+        expires_at: expiresAt.toISOString(),
+        device_info: deviceInfo || {},
+        ip_address: deviceInfo?.ip || null,
+        user_agent: deviceInfo?.userAgent || null,
+      });
+  }
+
+  /**
+   * Verify refresh token is valid
+   * 
+   * @param userId - User ID
+   * @param refreshToken - Refresh token to verify
+   * @returns True if valid, false otherwise
+   */
+  private async verifyRefreshToken(userId: string, refreshToken: string): Promise<boolean> {
+    const supabase = this.supabaseService.getClient();
+    const tokenHash = this.hashToken(refreshToken);
+    
+    const { data, error } = await supabase
+      .from('refresh_tokens')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('token_hash', tokenHash)
+      .eq('is_revoked', false)
+      .gte('expires_at', new Date().toISOString())
+      .single();
+      
+    return !error && !!data;
   }
 
   /**

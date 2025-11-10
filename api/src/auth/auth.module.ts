@@ -7,16 +7,13 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { RefreshTokenStrategy } from './strategies/refresh.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RefreshAuthGuard } from './guards/refresh-auth.guard';
+import { SupabaseModule } from '../supabase/supabase.module';
 
 /**
  * Authentication Module
  * 
  * Provides JWT-based authentication with refresh token support
- * 
- * TODO: Once TypeORM entities are integrated:
- * 1. Import TypeOrmModule.forFeature([RefreshToken, User])
- * 2. Update AuthService to inject repositories
- * 3. Implement full authentication logic
+ * Uses Supabase for database operations until TypeORM migration is complete
  */
 @Module({
   imports: [
@@ -27,8 +24,7 @@ import { RefreshAuthGuard } from './guards/refresh-auth.guard';
         expiresIn: process.env.JWT_EXPIRES_IN || '15m',
       },
     }),
-    // TODO: Add TypeORM repositories when ready
-    // TypeOrmModule.forFeature([RefreshToken, User]),
+    SupabaseModule,
   ],
   controllers: [AuthController],
   providers: [
