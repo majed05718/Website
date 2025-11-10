@@ -39,7 +39,7 @@ export class OnboardingController {
   /**
    * Complete office setup - Requires SystemAdmin
    */
-  @Roles('SystemAdmin')
+  @Roles('system_admin')
   @Post('complete')
   async complete(@Body() body: { office_id: string; whatsapp_config?: any; subscription_plan?: string }) {
     return this.onboarding.complete(body);
