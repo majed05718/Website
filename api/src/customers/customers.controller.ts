@@ -22,7 +22,7 @@ export class CustomersController {
 
   @Get()
   @ApiOperation({ summary: 'قائمة العملاء مع filters' })
-  @Roles('SystemAdmin', 'OfficeAdmin', 'Manager', 'Staff')
+  @Roles('system_admin', 'office_admin', 'manager', 'staff')
   async findAll(@Req() req: any, @Query() filters: FilterCustomersDto) {
     const officeId = req?.user?.office_id || req?.user?.officeId;
     if (!officeId) throw new UnauthorizedException('يجب تسجيل الدخول');
@@ -31,7 +31,7 @@ export class CustomersController {
 
   @Get('stats')
   @ApiOperation({ summary: 'إحصائيات العملاء' })
-  @Roles('SystemAdmin', 'OfficeAdmin', 'Manager', 'Staff')
+  @Roles('system_admin', 'office_admin', 'manager', 'staff')
   async getStats(@Req() req: any) {
     const officeId = req?.user?.office_id || req?.user?.officeId;
     if (!officeId) throw new UnauthorizedException('يجب تسجيل الدخول');
@@ -41,7 +41,7 @@ export class CustomersController {
   @Get('search')
   @ApiOperation({ summary: 'البحث السريع عن عملاء' })
   @ApiQuery({ name: 'q', required: true, description: 'كلمة البحث' })
-  @Roles('SystemAdmin', 'OfficeAdmin', 'Manager', 'Staff')
+  @Roles('system_admin', 'office_admin', 'manager', 'staff')
   async search(@Req() req: any, @Query('q') searchTerm: string) {
     const officeId = req?.user?.office_id || req?.user?.officeId;
     if (!officeId) throw new UnauthorizedException('يجب تسجيل الدخول');
@@ -50,7 +50,7 @@ export class CustomersController {
 
   @Get('export')
   @ApiOperation({ summary: 'تصدير العملاء إلى Excel' })
-  @Roles('SystemAdmin', 'OfficeAdmin', 'Manager', 'Staff')
+  @Roles('system_admin', 'office_admin', 'manager', 'staff')
   async exportExcel(@Req() req: any, @Res({ passthrough: true }) res: Response) {
     const officeId = req?.user?.office_id || req?.user?.officeId;
     if (!officeId) throw new UnauthorizedException('يجب تسجيل الدخول');

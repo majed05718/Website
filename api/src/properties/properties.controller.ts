@@ -15,7 +15,7 @@ export class PropertiesController {
   constructor(private readonly propertiesService: PropertiesService) {}
 
   @Get()
-  @Roles('SystemAdmin', 'OfficeAdmin', 'Manager', 'Staff', 'Accountant')
+  @Roles('system_admin', 'office_admin', 'manager', 'staff', 'accountant')
   async list(@Req() req: any, @Query() query: FilterPropertiesDto) {
     const officeId = req?.user?.office_id || req?.user?.officeId;
     if (!officeId) throw new UnauthorizedException('يجب تسجيل الدخول للوصول إلى قائمة العقارات');
@@ -23,7 +23,7 @@ export class PropertiesController {
   }
 
   @Get(':id')
-  @Roles('SystemAdmin', 'OfficeAdmin', 'Manager', 'Staff', 'Accountant')
+  @Roles('system_admin', 'office_admin', 'manager', 'staff', 'accountant')
   async getOne(@Req() req: any, @Param('id') id: string) {
     const officeId = req?.user?.office_id || req?.user?.officeId;
     if (!officeId) throw new UnauthorizedException('يجب تسجيل الدخول للوصول إلى تفاصيل العقار');
@@ -31,7 +31,7 @@ export class PropertiesController {
   }
 
   @Post()
-  @Roles('SystemAdmin', 'OfficeAdmin', 'Manager', 'Staff')
+  @Roles('system_admin', 'office_admin', 'manager', 'staff')
   async create(@Req() req: any, @Body() dto: CreatePropertyDto) {
     const officeId = req?.user?.office_id || req?.user?.officeId;
     const userId = req?.user?.user_id || req?.user?.id;
@@ -40,7 +40,7 @@ export class PropertiesController {
   }
 
   @Patch(':id')
-  @Roles('SystemAdmin', 'OfficeAdmin', 'Manager', 'Staff')
+  @Roles('system_admin', 'office_admin', 'manager', 'staff')
   async update(@Req() req: any, @Param('id') id: string, @Body() dto: UpdatePropertyDto) {
     const officeId = req?.user?.office_id || req?.user?.officeId;
     const updated = await this.propertiesService.update(officeId, id, dto);
@@ -48,7 +48,7 @@ export class PropertiesController {
   }
 
   @Delete(':id')
-  @Roles('SystemAdmin', 'OfficeAdmin', 'Manager')
+  @Roles('system_admin', 'office_admin', 'manager')
   async softDelete(@Req() req: any, @Param('id') id: string) {
     const officeId = req?.user?.office_id || req?.user?.officeId;
     const res = await this.propertiesService.softDelete(officeId, id);

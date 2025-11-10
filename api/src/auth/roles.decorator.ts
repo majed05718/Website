@@ -15,14 +15,14 @@ import { SetMetadata } from '@nestjs/common';
  */
 export const ROLES_KEY = 'roles';
 export type AppRole = 
-  | 'SystemAdmin'     // Full system access
-  | 'OfficeAdmin'     // Office-level administrator
-  | 'Manager'         // Office manager
-  | 'Staff'           // Regular staff
-  | 'Accountant'      // Financial operations
-  | 'Technician'      // Maintenance operations
-  | 'Owner'           // Property owner
-  | 'Tenant';         // Property tenant
+  | 'system_admin'    // Full system access
+  | 'office_admin'    // Office-level administrator
+  | 'manager'         // Office manager
+  | 'staff'           // Regular staff
+  | 'accountant'      // Financial operations
+  | 'technician'      // Maintenance operations
+  | 'owner'           // Property owner
+  | 'tenant';         // Property tenant
 
 /**
  * Roles Decorator
@@ -30,7 +30,7 @@ export type AppRole =
  * Apply this decorator to controllers or methods to enforce role-based access control
  * 
  * @example
- * @Roles('OfficeAdmin', 'SystemAdmin')
+ * @Roles('office_admin', 'system_admin')
  * @Post('offices')
  * createOffice() { ... }
  */
