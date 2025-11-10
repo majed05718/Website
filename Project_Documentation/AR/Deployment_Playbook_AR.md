@@ -195,6 +195,37 @@ psql -U estate_user -d real_estate_db -f supabase_schema.sql
 
 ## نشر الإنتاج
 
+### ⚠️ تحذيرات مهمة قبل البدء
+
+**يجب التأكد من:**
+
+1. **NODE_ENV يجب أن يكون قياسي:**
+   - ✅ استخدم فقط: `production`, `development`, `test`
+   - ❌ لا تستخدم: `staging`, `prod`, `local`, أو أي قيمة أخرى
+   - Next.js يرفض القيم غير القياسية ويعرض تحذيرات
+
+2. **بناء المشروع إلزامي:**
+   - Next.js في وضع الإنتاج (`next start`) يحتاج إلى بناء مسبق
+   - يجب تشغيل `npm run build` قبل `npm start`
+   - مجلد `.next` يجب أن يحتوي على `BUILD_ID`
+   - بدون البناء، سيظهر خطأ: "Could not find a production build"
+
+3. **المساحة والذاكرة:**
+   - عملية البناء تحتاج مساحة ~500MB
+   - عملية البناء قد تستغرق 2-5 دقائق
+   - لا تقاطع عملية البناء
+
+4. **التحقق بعد البناء:**
+   ```bash
+   # التحقق من بناء Backend
+   ls -la /opt/real-estate-management-system/api/dist/main.js
+   
+   # التحقق من بناء Frontend (الأهم!)
+   ls -la /opt/real-estate-management-system/Web/.next/BUILD_ID
+   ```
+
+---
+
 ### الخطوة 1: استنساخ المستودع
 
 ```bash
@@ -296,15 +327,28 @@ npm ci --production=false
 
 ### الخطوة 5: بناء التطبيقات
 
+**⚠️ مهم جداً:** يجب بناء المشروع قبل التشغيل في وضع الإنتاج!
+
 ```bash
 # بناء الواجهة الخلفية
 cd /opt/real-estate-management-system/api
+export NODE_ENV=production
 npm run build
 
-# بناء الواجهة الأمامية
+# التحقق من نجاح البناء
+ls -la dist/main.js  # يجب أن يكون موجود
+
+# بناء الواجهة الأمامية (خطوة حاسمة!)
 cd /opt/real-estate-management-system/Web
+export NODE_ENV=production
 npm run build
+
+# التحقق من نجاح البناء
+ls -la .next/BUILD_ID  # يجب أن يكون موجود
+cat .next/BUILD_ID     # عرض BUILD_ID
 ```
+
+**ملاحظة:** عملية بناء الواجهة الأمامية قد تستغرق 2-5 دقائق. لا تقاطع العملية!
 
 ### الخطوة 6: البدء بـ PM2
 
@@ -655,11 +699,13 @@ curl -v -X POST http://localhost:3001/auth/login \
 pm2 logs dev-api | grep -i "auth"
 ```
 
-### المشكلة 4: الواجهة الأمامية لا تحمل
+### المشكلة 4: الواجهة الأمامية لا تحمل ⚠️ الأكثر شيوعاً
 
 **الأعراض:**
 - المتصفح يعرض "لا يمكن الاتصال" أو صفحة فارغة
 - curl يعيد رفض الاتصال
+- ❌ خطأ: "Could not find a production build in the '.next' directory"
+- ⚠️ تحذير: "You are using a non-standard NODE_ENV value"
 
 **الحلول:**
 
@@ -670,22 +716,42 @@ pm2 status | grep frontend
 # 2. التحقق من سجلات الواجهة الأمامية
 pm2 logs dev-frontend --lines 50
 
-# 3. التحقق من اكتمال بناء Next.js
+# 3. التحقق من اكتمال بناء Next.js (السبب الأكثر شيوعاً!)
 cd /opt/real-estate-management-system/Web
-ls -la .next/  # يجب أن يحتوي على ملفات البناء
+ls -la .next/BUILD_ID  # يجب أن يكون موجود
 
-# 4. إعادة بناء الواجهة الأمامية
-npm run build
+# إذا كان BUILD_ID غير موجود، قم بالبناء:
+# 4. إعادة بناء الواجهة الأمامية (الحل الرئيسي)
+export NODE_ENV=production  # مهم: استخدم production فقط!
+rm -rf .next  # حذف البناء القديم
+npm run build  # بناء جديد (يستغرق 2-5 دقائق)
 
-# 5. التحقق من اتصال API
-cat .env.production | grep NEXT_PUBLIC_API_URL
+# 5. التحقق من نجاح البناء
+ls -la .next/BUILD_ID && echo "✅ البناء نجح" || echo "❌ البناء فشل"
 
-# 6. اختبار API من منظور الواجهة الأمامية
+# 6. التحقق من NODE_ENV في PM2
+cd /opt/real-estate-management-system
+grep "NODE_ENV" ecosystem.config.js
+# يجب أن يكون: NODE_ENV: 'production' (وليس staging أو development)
+
+# 7. التحقق من اتصال API
+cat Web/.env.production | grep NEXT_PUBLIC_API_URL
+
+# 8. اختبار API من منظور الواجهة الأمامية
 curl http://localhost:3001/health
 
-# 7. إعادة تشغيل الواجهة الأمامية
+# 9. إعادة تشغيل الواجهة الأمامية
 pm2 restart dev-frontend
+
+# 10. مراقبة السجلات
+pm2 logs dev-frontend --lines 100
 ```
+
+**⚠️ ملاحظة مهمة:**
+- Next.js يحتاج إلى **بناء المشروع** قبل `next start`
+- استخدم فقط `NODE_ENV=production` أو `development` (لا تستخدم `staging`)
+- مجلد `.next` يحتوي على ملفات الإنتاج المحسّنة
+- البناء يجب أن يتم في كل مرة تقوم بتحديث الكود
 
 ### المشكلة 5: أخطاء CORS
 
@@ -731,9 +797,19 @@ git fetch origin
 git checkout main
 git pull origin main
 
-# تثبيت التبعيات الجديدة
-cd api && npm ci --production=false && npm run build
-cd ../Web && npm ci --production=false && npm run build
+# تثبيت التبعيات الجديدة والبناء (مهم!)
+cd api
+npm ci --production=false
+export NODE_ENV=production
+npm run build
+ls -la dist/main.js  # التحقق من البناء
+
+cd ../Web
+npm ci --production=false
+export NODE_ENV=production
+rm -rf .next  # حذف البناء القديم
+npm run build  # بناء جديد (2-5 دقائق)
+ls -la .next/BUILD_ID  # التحقق من البناء
 
 # إعادة تشغيل التطبيقات (إعادة تشغيل بدون توقف)
 cd ..
@@ -1013,6 +1089,100 @@ curl -X POST http://localhost:3001/auth/login \
 
 **آخر تحقق:** 2025-11-10  
 **الشهادة:** مهندس DevOps رئيسي
+
+---
+
+## ملحق: المشاكل الشائعة ومنع تكرارها
+
+### ❌ المشكلة الأكثر شيوعاً: Frontend لا يعمل
+
+**السبب الرئيسي:**
+1. عدم بناء المشروع قبل التشغيل
+2. استخدام `NODE_ENV` غير قياسي (مثل `staging`)
+
+**الوقاية:**
+
+1. **دائماً قم ببناء المشروع قبل النشر:**
+   ```bash
+   cd /opt/real-estate-management-system/Web
+   export NODE_ENV=production
+   npm run build
+   ls -la .next/BUILD_ID  # التحقق
+   ```
+
+2. **استخدم فقط قيم NODE_ENV القياسية:**
+   - ✅ `production` للإنتاج
+   - ✅ `development` للتطوير
+   - ✅ `test` للاختبار
+   - ❌ **لا تستخدم**: `staging`, `prod`, `local`
+
+3. **تحديث ecosystem.config.js:**
+   ```javascript
+   // ✅ صحيح
+   env: {
+     NODE_ENV: 'production',
+     PORT: 3000,
+   }
+   
+   // ❌ خطأ
+   env: {
+     NODE_ENV: 'staging',  // Next.js يرفض هذا
+     PORT: 3000,
+   }
+   ```
+
+4. **إنشاء سكريبت نشر آمن:**
+   ```bash
+   #!/bin/bash
+   # deploy-safe.sh
+   
+   echo "=== نشر آمن ==="
+   
+   # 1. تعيين البيئة
+   export NODE_ENV=production
+   
+   # 2. سحب التحديثات
+   git pull origin main
+   
+   # 3. تثبيت التبعيات
+   cd api && npm ci --production=false
+   cd ../Web && npm ci --production=false
+   
+   # 4. البناء (الخطوة الحاسمة!)
+   cd ../api
+   npm run build || { echo "❌ فشل بناء Backend"; exit 1; }
+   
+   cd ../Web
+   rm -rf .next
+   npm run build || { echo "❌ فشل بناء Frontend"; exit 1; }
+   
+   # 5. التحقق من البناء
+   cd ..
+   [ -f "api/dist/main.js" ] && echo "✅ Backend built" || { echo "❌ Backend build missing"; exit 1; }
+   [ -f "Web/.next/BUILD_ID" ] && echo "✅ Frontend built" || { echo "❌ Frontend build missing"; exit 1; }
+   
+   # 6. إعادة تشغيل
+   pm2 reload all
+   
+   # 7. التحقق
+   sleep 5
+   curl http://localhost:3001/health
+   curl -I http://localhost:3000
+   
+   echo "✅ النشر اكتمل بنجاح"
+   ```
+
+5. **قائمة تحقق قبل النشر:**
+   - [ ] `NODE_ENV=production` في جميع الملفات
+   - [ ] تم تشغيل `npm run build` للواجهة الأمامية
+   - [ ] ملف `.next/BUILD_ID` موجود
+   - [ ] ملف `api/dist/main.js` موجود
+   - [ ] لا توجد قيم `staging` في ecosystem.config.js
+
+**روابط مفيدة:**
+- سكريبت الإصلاح التلقائي: `/workspace/fix-frontend-production.sh`
+- سكريبت الفحص: `/workspace/check-frontend-status.sh`
+- دليل الإصلاح الشامل: `/workspace/FRONTEND_FIX_GUIDE.md`
 
 ---
 
