@@ -1,9 +1,10 @@
-import { NestFactory } from '@nestjs/core';
+import { NestFactory, Reflector } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
 import * as compression from 'compression';
+import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -36,6 +37,11 @@ async function bootstrap() {
       forbidNonWhitelisted: true,
     })
   );
+
+  // Global Authentication Guard - Apply JWT Auth to ALL routes by default
+  // Routes marked with @Public() decorator are exempt
+  const reflector = app.get(Reflector);
+  app.useGlobalGuards(new JwtAuthGuard(reflector));
 
   // CORS Configuration
   app.enableCors({

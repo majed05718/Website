@@ -25,6 +25,586 @@
 ## System Overview
 The solution adopts a modular NestJS backend paired with a Next.js frontend. Supabase provides database, authentication, and file storage. Domain modules encapsulate bounded contexts such as Properties, Customers, and Payments.
 
+---
+
+## Security Architecture
+
+### Overview
+
+The Real Estate Management System implements a **Zero Trust** security model with **JWT-based authentication** using Access/Refresh token rotation and **Role-Based Access Control (RBAC)**. The architecture ensures:
+
+1. **Authentication**: All users must prove their identity via JWT tokens
+2. **Authorization**: All resources require explicit role-based permissions
+3. **Multi-Tenancy**: All data queries are scoped by `office_id` to prevent cross-tenant data leaks
+4. **HttpOnly Cookies**: Refresh tokens are stored securely, protected from XSS attacks
+5. **Token Rotation**: Refresh tokens are rotated on each use to detect theft
+
+### Security Model: Access Token + Refresh Token
+
+#### Token Types
+
+| Token Type | Purpose | Storage | Lifespan | Vulnerable to XSS | Revocable |
+|-----------|---------|---------|----------|-------------------|-----------|
+| **Access Token** | Authenticates API requests | `localStorage` | 15 minutes | ⚠️ Yes | No (expires quickly) |
+| **Refresh Token** | Issues new access tokens | `HttpOnly Cookie` | 7 days | ✅ No | ✅ Yes (database-backed) |
+
+#### Why This Model?
+
+- **Short-lived access tokens** limit damage if stolen (only 15 min window)
+- **Long-lived refresh tokens** provide convenience without compromising security
+- **HttpOnly cookies** protect refresh tokens from JavaScript access (XSS mitigation)
+- **Database-backed refresh tokens** enable instant revocation (logout from all devices)
+- **Token rotation** detects theft (concurrent use invalidates all tokens)
+
+### Security Components
+
+#### Backend Components (NestJS API)
+
+##### 1. JwtAuthGuard (`api/src/auth/guards/jwt-auth.guard.ts`)
+
+**Purpose**: Global authentication guard applied to ALL API endpoints by default.
+
+**How it works**:
+1. Applied globally in `main.ts` via `app.useGlobalGuards(new JwtAuthGuard(reflector))`
+2. Checks every incoming request for `Authorization: Bearer <token>` header
+3. Validates token signature using `JWT_SECRET`
+4. Decodes token payload and attaches `user` object to `req.user`
+5. Throws `401 Unauthorized` if token is missing, expired, or invalid
+
+**Exemptions**: Routes marked with `@Public()` decorator (e.g., `/auth/login`, `/auth/refresh`)
+
+**Key Code**:
+```typescript
+@Injectable()
+export class JwtAuthGuard extends AuthGuard('jwt') {
+  constructor(private reflector: Reflector) {
+    super();
+  }
+
+  canActivate(context: ExecutionContext) {
+    // Check if route is marked @Public()
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+
+    if (isPublic) {
+      return true; // Skip auth for public routes
+    }
+
+    // Otherwise, validate JWT token
+    return super.canActivate(context);
+  }
+}
+```
+
+---
+
+##### 2. RolesGuard (`api/src/auth/roles.guard.ts`)
+
+**Purpose**: Enforces Role-Based Access Control (RBAC) on protected endpoints.
+
+**How it works**:
+1. Runs AFTER `JwtAuthGuard` (user is already authenticated)
+2. Reads `@Roles()` decorator metadata from route handler
+3. Compares user's role (from JWT payload) with required roles
+4. Allows access if user's role matches, otherwise throws `403 Forbidden`
+
+**Supported Roles** (hierarchy):
+- `SystemAdmin` - Full system access, can manage all offices
+- `OfficeAdmin` - Office-level administrator
+- `Manager` - Office manager
+- `Staff` - Regular office staff
+- `Accountant` - Financial operations
+- `Technician` - Maintenance operations
+- `Owner` - Property owner (external)
+- `Tenant` - Property tenant (external)
+
+**Key Code**:
+```typescript
+@Injectable()
+export class RolesGuard implements CanActivate {
+  constructor(private readonly reflector: Reflector) {}
+
+  canActivate(context: ExecutionContext): boolean {
+    const requiredRoles = this.reflector.getAllAndOverride<AppRole[]>(ROLES_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+
+    if (!requiredRoles || requiredRoles.length === 0) {
+      return true; // No specific roles required
+    }
+
+    const request: any = context.switchToHttp().getRequest();
+    const userRole = request?.user?.role;
+
+    if (!userRole || !requiredRoles.includes(userRole)) {
+      throw new ForbiddenException('ليس لديك الصلاحية اللازمة لتنفيذ هذه العملية');
+    }
+
+    return true;
+  }
+}
+```
+
+---
+
+##### 3. JwtStrategy (`api/src/auth/strategies/jwt.strategy.ts`)
+
+**Purpose**: Passport.js strategy for validating and decoding JWT access tokens.
+
+**How it works**:
+1. Extracts token from `Authorization: Bearer <token>` header
+2. Verifies token signature using `JWT_SECRET`
+3. Decodes payload (contains `sub`, `email`, `role`, `officeId`)
+4. Returns user object, which is attached to `req.user` by Passport
+
+**Key Code**:
+```typescript
+@Injectable()
+export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
+  constructor() {
+    super({
+      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      ignoreExpiration: false,
+      secretOrKey: process.env.JWT_SECRET || 'default-secret-change-in-production',
+    });
+  }
+
+  async validate(payload: any) {
+    if (!payload.sub || !payload.email) {
+      throw new UnauthorizedException('رمز الدخول غير صالح');
+    }
+
+    return {
+      id: payload.sub,
+      email: payload.email,
+      role: payload.role,
+      officeId: payload.officeId,
+    };
+  }
+}
+```
+
+---
+
+##### 4. RefreshTokenStrategy (`api/src/auth/strategies/refresh.strategy.ts`)
+
+**Purpose**: Passport.js strategy for validating refresh tokens (from cookies or body).
+
+**How it works**:
+1. Extracts refresh token from HttpOnly cookie OR request body
+2. Verifies token signature using `JWT_REFRESH_SECRET`
+3. Validates that token hasn't been revoked in database
+4. Returns user object for issuing new token pair
+
+**Key Code**:
+```typescript
+@Injectable()
+export class RefreshTokenStrategy extends PassportStrategy(Strategy, 'jwt-refresh') {
+  constructor() {
+    super({
+      jwtFromRequest: ExtractJwt.fromExtractors([
+        (request: Request) => {
+          // Try HttpOnly cookie first
+          return request?.cookies?.refreshToken || request?.body?.refreshToken;
+        },
+      ]),
+      ignoreExpiration: false,
+      secretOrKey: process.env.JWT_REFRESH_SECRET || 'refresh-secret-change-in-production',
+    });
+  }
+
+  async validate(payload: any) {
+    // TODO: Check if token is revoked in database
+    return {
+      id: payload.sub,
+      email: payload.email,
+    };
+  }
+}
+```
+
+---
+
+##### 5. @Public() Decorator (`api/src/auth/decorators/public.decorator.ts`)
+
+**Purpose**: Marks routes as public (exempt from global `JwtAuthGuard`).
+
+**Usage**:
+```typescript
+@Public()
+@Post('login')
+async login() {
+  // Public endpoint - no auth required
+}
+```
+
+---
+
+##### 6. @Roles() Decorator (`api/src/auth/roles.decorator.ts`)
+
+**Purpose**: Declares which roles are allowed to access a route.
+
+**Usage**:
+```typescript
+@Roles('SystemAdmin', 'OfficeAdmin', 'Manager')
+@Post('properties')
+async createProperty() {
+  // Only SystemAdmin, OfficeAdmin, and Manager can create properties
+}
+```
+
+---
+
+#### Frontend Components (Next.js App)
+
+##### 1. Next.js Middleware (`Web/src/middleware.ts`)
+
+**Purpose**: Route protection at the edge - runs before every page request.
+
+**How it works**:
+1. Intercepts ALL incoming requests (except public routes and assets)
+2. Checks for `refreshToken` HttpOnly cookie
+3. If missing → Redirects to `/login?redirect=<current-path>`
+4. If present → Allows request to proceed
+
+**Protected Routes**: All routes except `/login`, `/register`, and static assets.
+
+**Key Code**:
+```typescript
+export function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // Allow public routes
+  if (isPublicPath(pathname)) {
+    return NextResponse.next();
+  }
+
+  // Check for refresh token cookie
+  const refreshToken = request.cookies.get('refreshToken');
+
+  if (!refreshToken || !refreshToken.value) {
+    // No token → Redirect to login
+    const loginUrl = new URL('/login', request.url);
+    loginUrl.searchParams.set('redirect', pathname);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  // Token exists → Allow request
+  return NextResponse.next();
+}
+```
+
+**Result**: Unauthenticated users cannot access protected pages, even if they manually type URLs.
+
+---
+
+##### 2. Axios Interceptor (`Web/src/lib/api.ts`)
+
+**Purpose**: Handles API authentication and error responses globally.
+
+**Request Interceptor**:
+- Attaches `Authorization: Bearer <token>` header to every API request
+- Retrieves access token from `localStorage`
+
+**Response Interceptor**:
+- **401 Unauthorized**: Clears auth state, shows toast, redirects to login
+- **403 Forbidden**: Shows "Permission Denied" toast
+- **5xx Server Errors**: Shows generic error toast
+- **Network Errors**: Shows connection error toast
+
+**Key Code**:
+```typescript
+// Response interceptor
+api.interceptors.response.use(
+  (response) => response,
+  (error: AxiosError) => {
+    const status = error.response?.status;
+
+    if (typeof window !== 'undefined') {
+      switch (status) {
+        case 401:
+          // Token expired - redirect to login
+          localStorage.removeItem('auth_token');
+          toast.error('انتهت صلاحية جلستك. يرجى تسجيل الدخول مرة أخرى');
+          window.location.href = `/login?redirect=${window.location.pathname}`;
+          break;
+
+        case 403:
+          // Insufficient permissions
+          toast.error('ليس لديك الصلاحية لتنفيذ هذه العملية');
+          break;
+
+        // Other error cases...
+      }
+    }
+
+    return Promise.reject(error);
+  }
+);
+```
+
+**Result**: Users always receive clear feedback for authentication/authorization failures.
+
+---
+
+### Multi-Tenancy: Tenant-Aware Queries
+
+**Core Principle**: Every database query MUST filter by `officeId` to prevent cross-tenant data leaks.
+
+**Pattern**:
+```typescript
+// Controller: Extract officeId from JWT
+@Get('properties')
+@Roles('Manager', 'Staff')
+async list(@Req() req: any) {
+  const officeId = req.user.officeId; // From JWT payload
+  return this.propertiesService.findAll(officeId);
+}
+
+// Service: Always filter by officeId
+async findAll(officeId: string, filters: FilterDto) {
+  return await this.supabase.getClient()
+    .from('properties')
+    .select('*')
+    .eq('office_id', officeId) // Critical security filter
+    .eq('status', filters.status);
+}
+```
+
+**Security**: Even if a user knows another office's property UUID, they cannot access it because the `officeId` filter prevents it.
+
+**Documentation**: See `/workspace/api/src/auth/TENANT_AWARE_PATTERN.md` for comprehensive patterns and anti-patterns.
+
+---
+
+### Security Scenario Flows
+
+The following sequence diagrams illustrate end-to-end security flows for different scenarios.
+
+#### Scenario 1: Successful Authenticated Request
+
+**Narrative**: A user navigates to `/dashboard/properties` and successfully loads the properties list.
+
+```mermaid
+sequenceDiagram
+    participant Browser
+    participant NextMiddleware as Next.js Middleware
+    participant NextApp as Next.js App
+    participant AxiosLib as Axios Library
+    participant NestAPI as NestJS API
+    participant JwtGuard as JwtAuthGuard
+    participant RolesGuard as RolesGuard
+    participant Service as PropertiesService
+    participant Database as Supabase DB
+
+    Browser->>NextMiddleware: GET /dashboard/properties
+    NextMiddleware->>NextMiddleware: Check refreshToken cookie
+    alt refreshToken exists
+        NextMiddleware->>NextApp: Allow request
+    else refreshToken missing
+        NextMiddleware->>Browser: 302 Redirect to /login
+    end
+
+    NextApp->>NextApp: Render page skeleton
+    NextApp->>AxiosLib: GET /api/properties
+    AxiosLib->>AxiosLib: Attach Authorization: Bearer <accessToken>
+    AxiosLib->>NestAPI: GET /api/properties
+
+    NestAPI->>JwtGuard: Validate request
+    JwtGuard->>JwtGuard: Extract & verify JWT
+    JwtGuard->>JwtGuard: Decode payload → req.user
+    JwtGuard->>RolesGuard: User authenticated, continue
+
+    RolesGuard->>RolesGuard: Check @Roles() metadata
+    RolesGuard->>RolesGuard: Verify user.role matches
+    alt Role authorized
+        RolesGuard->>Service: Call service method
+        Service->>Service: Extract officeId from req.user
+        Service->>Database: SELECT * FROM properties WHERE office_id = ?
+        Database->>Service: Return properties
+        Service->>NestAPI: Return properties
+        NestAPI->>AxiosLib: 200 OK + properties data
+        AxiosLib->>NextApp: Resolve promise with data
+        NextApp->>Browser: Render properties list
+    else Role unauthorized
+        RolesGuard->>NestAPI: Throw 403 Forbidden
+        NestAPI->>AxiosLib: 403 Forbidden
+        AxiosLib->>AxiosLib: Interceptor catches 403
+        AxiosLib->>Browser: Show "Permission Denied" toast
+    end
+```
+
+---
+
+#### Scenario 2: Access with Expired/Invalid Token (Middleware Level)
+
+**Narrative**: A user tries to access `/dashboard/finance` but their refresh token cookie has expired or is missing. The Next.js middleware catches this immediately.
+
+```mermaid
+sequenceDiagram
+    participant Browser
+    participant NextMiddleware as Next.js Middleware
+    participant LoginPage as Login Page
+
+    Browser->>NextMiddleware: GET /dashboard/finance
+    NextMiddleware->>NextMiddleware: Check refreshToken cookie
+
+    alt refreshToken missing or empty
+        NextMiddleware->>NextMiddleware: Log: "No auth token"
+        NextMiddleware->>Browser: 302 Redirect to /login?redirect=/dashboard/finance
+        Browser->>LoginPage: Load login page
+        LoginPage->>Browser: Show login form
+        Note over Browser,LoginPage: User must login to access /dashboard/finance
+    else refreshToken exists
+        NextMiddleware->>Browser: Allow request (proceed to app)
+    end
+```
+
+**Key Point**: This happens BEFORE the React app even loads, making it extremely fast and secure.
+
+---
+
+#### Scenario 3: API Call with Expired/Invalid Token (API Level)
+
+**Narrative**: A user is already on a page, but their access token expires while browsing. They trigger an API call, and the NestJS API rejects it with 401 Unauthorized. The Axios interceptor handles the error gracefully.
+
+```mermaid
+sequenceDiagram
+    participant Browser
+    participant NextApp as Next.js App
+    participant AxiosLib as Axios Library
+    participant NestAPI as NestJS API
+    participant JwtGuard as JwtAuthGuard
+    participant LoginPage as Login Page
+
+    Note over Browser,NextApp: User is on /dashboard/finance (page loaded)
+    Note over Browser,NextApp: Access token expires after 15 minutes
+
+    Browser->>NextApp: User clicks "Load more data"
+    NextApp->>AxiosLib: GET /api/properties
+    AxiosLib->>AxiosLib: Attach Authorization: Bearer <expired-token>
+    AxiosLib->>NestAPI: GET /api/properties
+
+    NestAPI->>JwtGuard: Validate request
+    JwtGuard->>JwtGuard: Extract JWT token
+    JwtGuard->>JwtGuard: Verify signature & expiration
+    JwtGuard->>JwtGuard: Token EXPIRED!
+    JwtGuard->>NestAPI: Throw 401 Unauthorized
+
+    NestAPI->>AxiosLib: 401 Unauthorized
+    AxiosLib->>AxiosLib: Response interceptor catches 401
+    AxiosLib->>AxiosLib: Clear localStorage (auth_token)
+    AxiosLib->>Browser: Show toast: "Session expired. Please login again."
+    AxiosLib->>Browser: Wait 1 second...
+    AxiosLib->>LoginPage: Redirect to /login?redirect=/dashboard/finance
+    
+    LoginPage->>Browser: Show login form
+    Note over Browser,LoginPage: User must re-authenticate
+```
+
+**Key Point**: Even if the middleware allows the page to load (refresh token valid), the API still validates the access token on every request. This provides defense-in-depth.
+
+---
+
+#### Scenario 4: Insufficient Permissions (RBAC Failure)
+
+**Narrative**: An `OfficeAdmin` user tries to access a `SystemAdmin`-only endpoint (`POST /offices`). The request passes authentication but fails authorization.
+
+```mermaid
+sequenceDiagram
+    participant Browser
+    participant NextApp as Next.js App
+    participant AxiosLib as Axios Library
+    participant NestAPI as NestJS API
+    participant JwtGuard as JwtAuthGuard
+    participant RolesGuard as RolesGuard
+
+    Browser->>NextApp: User clicks "Create New Office" button
+    NextApp->>AxiosLib: POST /api/offices {office_name: "..."}
+    AxiosLib->>AxiosLib: Attach Authorization: Bearer <valid-token>
+    AxiosLib->>NestAPI: POST /api/offices
+
+    NestAPI->>JwtGuard: Validate request
+    JwtGuard->>JwtGuard: Extract & verify JWT
+    JwtGuard->>JwtGuard: Decode payload → req.user {role: "OfficeAdmin"}
+    JwtGuard->>RolesGuard: User authenticated ✅
+
+    Note over NestAPI,RolesGuard: Route decorated with @Roles('SystemAdmin')
+
+    RolesGuard->>RolesGuard: Read @Roles() metadata
+    RolesGuard->>RolesGuard: Required: ['SystemAdmin']
+    RolesGuard->>RolesGuard: User role: 'OfficeAdmin'
+    RolesGuard->>RolesGuard: 'OfficeAdmin' NOT IN ['SystemAdmin']
+    RolesGuard->>NestAPI: Throw 403 Forbidden
+
+    NestAPI->>AxiosLib: 403 Forbidden {message: "ليس لديك الصلاحية..."}
+    AxiosLib->>AxiosLib: Response interceptor catches 403
+    AxiosLib->>Browser: Show toast: "ليس لديك الصلاحية لتنفيذ هذه العملية"
+    
+    Note over Browser: User sees permission denied message
+    Note over Browser: Page remains on current route (no redirect)
+```
+
+**Key Point**: The user is authenticated (valid token) but not authorized (wrong role). This demonstrates the separation between authentication and authorization.
+
+---
+
+### Security Checklist for New Features
+
+When implementing a new feature, verify:
+
+**Backend (NestJS)**:
+- [ ] Controller method has `@Roles()` decorator with appropriate roles
+- [ ] Service method requires `officeId` as first parameter
+- [ ] Database query filters by `officeId` (tenant isolation)
+- [ ] Public endpoints are marked with `@Public()` decorator
+- [ ] JWT payload is accessed via `req.user` (never from request body)
+
+**Frontend (Next.js)**:
+- [ ] Page is protected by middleware (not in public routes list)
+- [ ] API calls wrapped in try-catch-finally
+- [ ] Loading states set before API call
+- [ ] Loading states reset in finally block
+- [ ] Success toast shown for mutations (create, update, delete)
+- [ ] Error logging to console for debugging
+
+---
+
+### Security Documentation References
+
+**Backend Patterns**:
+- Tenant-aware queries: `/workspace/api/src/auth/TENANT_AWARE_PATTERN.md`
+- Authentication guards: `/workspace/api/src/auth/guards/`
+- Role definitions: `/workspace/api/src/auth/roles.decorator.ts`
+
+**Frontend Patterns**:
+- API error handling: `/workspace/Web/src/lib/API_ERROR_HANDLING_PATTERN.md`
+- Middleware protection: `/workspace/Web/src/middleware.ts`
+- Axios interceptor: `/workspace/Web/src/lib/api.ts`
+
+---
+
+### Security Metrics & Monitoring
+
+**Recommended Monitoring** (to be implemented):
+- Failed login attempts (rate limiting)
+- Concurrent refresh token usage (potential theft detection)
+- 401/403 error rates per endpoint
+- Token refresh frequency per user
+- Cross-tenant data access attempts (should be 0)
+
+**Audit Logging** (to be implemented):
+- User login/logout events
+- Role changes
+- Permission denied events
+- Token revocation events
+- Sensitive data access (SystemAdmin viewing all offices)
+
+---
+
 ## Analytics Module Architecture
 
 - Controllers: 1

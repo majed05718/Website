@@ -5,14 +5,16 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RefreshAuthGuard } from './guards/refresh-auth.guard';
 import { LoginDto } from './dto/login.dto';
 import { LogoutDto } from './dto/logout.dto';
+import { Public } from './decorators/public.decorator';
 
 /**
  * Authentication Controller
  * 
  * Handles authentication endpoints:
- * - POST /auth/login - User login
- * - POST /auth/refresh - Refresh access token
- * - POST /auth/logout - User logout
+ * - POST /auth/login - User login (PUBLIC)
+ * - POST /auth/refresh - Refresh access token (PUBLIC)
+ * - POST /auth/logout - User logout (PROTECTED)
+ * - POST /auth/profile - Get user profile (PROTECTED)
  * 
  * TODO: Implement controller methods once AuthService is complete
  */
@@ -21,12 +23,13 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   /**
-   * Login endpoint
+   * Login endpoint - PUBLIC (no authentication required)
    * 
    * @param loginDto - Login credentials
    * @param res - Express response for setting HttpOnly cookies
    * @returns Access token and user info
    */
+  @Public() // Exempt from global JWT guard
   @Post('login')
   @HttpCode(HttpStatus.OK)
   async login(@Body() loginDto: LoginDto, @Res({ passthrough: true }) res: Response) {
@@ -39,14 +42,15 @@ export class AuthController {
   }
 
   /**
-   * Refresh token endpoint
+   * Refresh token endpoint - PUBLIC (uses RefreshAuthGuard instead of JWT)
    * 
    * @param req - Express request containing refresh token
    * @param res - Express response for setting new HttpOnly cookies
    * @returns New access token
    */
-  @Post('refresh')
+  @Public() // Exempt from global JWT guard (uses RefreshAuthGuard instead)
   @UseGuards(RefreshAuthGuard)
+  @Post('refresh')
   @HttpCode(HttpStatus.OK)
   async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     // TODO: Implement token refresh

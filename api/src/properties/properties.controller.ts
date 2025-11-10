@@ -15,40 +15,42 @@ export class PropertiesController {
   constructor(private readonly propertiesService: PropertiesService) {}
 
   @Get()
+  @Roles('SystemAdmin', 'OfficeAdmin', 'Manager', 'Staff', 'Accountant')
   async list(@Req() req: any, @Query() query: FilterPropertiesDto) {
-    const officeId = req?.user?.office_id;
+    const officeId = req?.user?.office_id || req?.user?.officeId;
     if (!officeId) throw new UnauthorizedException('يجب تسجيل الدخول للوصول إلى قائمة العقارات');
     return this.propertiesService.findAll(officeId, query);
   }
 
   @Get(':id')
+  @Roles('SystemAdmin', 'OfficeAdmin', 'Manager', 'Staff', 'Accountant')
   async getOne(@Req() req: any, @Param('id') id: string) {
-    const officeId = req?.user?.office_id;
+    const officeId = req?.user?.office_id || req?.user?.officeId;
     if (!officeId) throw new UnauthorizedException('يجب تسجيل الدخول للوصول إلى تفاصيل العقار');
     return this.propertiesService.findOneWithImages(officeId, id);
   }
 
   @Post()
-  @Roles('manager', 'staff')
+  @Roles('SystemAdmin', 'OfficeAdmin', 'Manager', 'Staff')
   async create(@Req() req: any, @Body() dto: CreatePropertyDto) {
-    const officeId = req?.user?.office_id;
-    const userId = req?.user?.user_id;
+    const officeId = req?.user?.office_id || req?.user?.officeId;
+    const userId = req?.user?.user_id || req?.user?.id;
     const created = await this.propertiesService.create(officeId, userId, dto);
     return { success: true, property: created };
   }
 
   @Patch(':id')
-  @Roles('manager', 'staff')
+  @Roles('SystemAdmin', 'OfficeAdmin', 'Manager', 'Staff')
   async update(@Req() req: any, @Param('id') id: string, @Body() dto: UpdatePropertyDto) {
-    const officeId = req?.user?.office_id;
+    const officeId = req?.user?.office_id || req?.user?.officeId;
     const updated = await this.propertiesService.update(officeId, id, dto);
     return { success: true, property: updated };
   }
 
   @Delete(':id')
-  @Roles('manager')
+  @Roles('SystemAdmin', 'OfficeAdmin', 'Manager')
   async softDelete(@Req() req: any, @Param('id') id: string) {
-    const officeId = req?.user?.office_id;
+    const officeId = req?.user?.office_id || req?.user?.officeId;
     const res = await this.propertiesService.softDelete(officeId, id);
     return res;
   }

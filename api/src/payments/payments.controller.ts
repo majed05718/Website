@@ -15,35 +15,38 @@ export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
   @Get('payments')
+  @Roles('SystemAdmin', 'OfficeAdmin', 'Manager', 'Staff', 'Accountant')
   async list(@Req() req: any, @Query() filters: FilterPaymentsDto) {
-    const officeId = req?.user?.office_id;
+    const officeId = req?.user?.office_id || req?.user?.officeId;
     return this.paymentsService.findPayments(officeId, filters);
   }
 
   @Get('contracts/:contractId/payments')
+  @Roles('SystemAdmin', 'OfficeAdmin', 'Manager', 'Staff', 'Accountant')
   async byContract(@Req() req: any, @Param('contractId') contractId: string) {
-    const officeId = req?.user?.office_id;
+    const officeId = req?.user?.office_id || req?.user?.officeId;
     return this.paymentsService.findByContract(officeId, contractId);
   }
 
   @Patch('payments/:id/mark-paid')
-  @Roles('manager', 'staff', 'accountant')
+  @Roles('SystemAdmin', 'OfficeAdmin', 'Manager', 'Staff', 'Accountant')
   async markPaid(@Req() req: any, @Param('id') id: string, @Body() dto: MarkPaidDto) {
-    const officeId = req?.user?.office_id;
+    const officeId = req?.user?.office_id || req?.user?.officeId;
     const updated = await this.paymentsService.markPaid(officeId, id, dto);
     return { success: true, payment: updated };
   }
 
   @Get('payments/overdue')
+  @Roles('SystemAdmin', 'OfficeAdmin', 'Manager', 'Staff', 'Accountant')
   async overdue(@Req() req: any) {
-    const officeId = req?.user?.office_id;
+    const officeId = req?.user?.office_id || req?.user?.officeId;
     return this.paymentsService.getOverdue(officeId);
   }
 
   @Post('payments/:id/send-reminder')
-  @Roles('manager', 'staff')
+  @Roles('SystemAdmin', 'OfficeAdmin', 'Manager', 'Staff')
   async sendReminder(@Req() req: any, @Param('id') id: string, @Body() body: SendReminderDto) {
-    const officeId = req?.user?.office_id;
+    const officeId = req?.user?.office_id || req?.user?.officeId;
     const res = await this.paymentsService.sendReminder(officeId, id, body?.message);
     return res;
   }
