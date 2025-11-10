@@ -5,6 +5,14 @@
 - **Generated**: 2025-11-09 19:56 UTC
 - **Scope**: Comprehensive functional catalogue across backend and frontend touchpoints, including validation, access control, data flow, and operational scenarios.
 
+## Runtime Stabilization Update (2025-11-09)
+
+- **NFR-STAGE-01**: Maintain a dedicated staging environment (`staging.example.com`, `api-staging.example.com`) that mirrors production configuration (ports, PM2 process layout, Supabase project) and is supplied via the `develop` branch as described in `Project_Documentation/EN/CIP.md`.  
+- **NFR-PERF-01**: The dashboard route (`/dashboard`) SHALL achieve FCP ≤ 2.5 s and TTI ≤ 4 s under Fast 3G on staging before any production deployment; Lighthouse score ≥ 80 is required on pull requests targeting `develop` or `main`.  
+- **NFR-CONFIG-01**: Backend and frontend runtimes MUST respect environment-aware configuration (`APP_ENV`, `.env.production`, `.env.staging`, PM2 interpreter args) enabling one-command switches between staging and production.  
+- **NFR-OBS-01**: Bundle analyzer reports and Lighthouse runs SHALL be archived per release in `docs/perf/` and exposed via Grafana; regressions block release until remediated.  
+- **NFR-SEC-01**: Access/refresh token model with HttpOnly cookies is mandated for all future auth work (see CIP §3.1); DTO validation (`class-validator`) remains a hard gate for API acceptance tests.
+
 ## Contents
 - [Analytics](#analytics)
 - [App](#app)

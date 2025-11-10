@@ -3,6 +3,15 @@
 - **تاريخ التوليد**: 2025-11-09 19:56 UTC
 - **الهدف**: دليل استيعاب شامل يصف كل ملف رئيسي في المشروع.
 
+## أبرز نقاط الاستقرار (2025-11-09)
+
+- **حل مشكلة التهيئة في الواجهة**: الملف `Web/src/app/dashboard/layout.tsx` يعتمد الآن على `useAuthStore((s) => s.hydrated)` لتجنب شاشة الانتظار؛ كما تم إضافة حالة `hydrated` والدالة `markHydrated` في `Web/src/store/auth-store.ts`.  
+- **تقليل الضوضاء في Axios**: تسجيل الطلبات في `Web/src/lib/api.ts` أصبح محصورًا في بيئات غير الإنتاج لتقليل الحمل على المتصفح.  
+- **تهيئة واعية بالبيئة**: `api/src/app.module.ts` يحمّل ملفات `.env.${APP_ENV}`، وملفات PM2 (`ecosystem.prod.config.js`, `ecosystem.dev.config.js`) تضبط `APP_ENV` و`CONFIG_PATH`.  
+- **خارطة الفهارس**: الخدمات `properties.service.ts`، `payments.service.ts`، `appointments.service.ts` هي المرجع الأساسي للفهارس الجديدة المذكورة في CIP §2.2.  
+- **أدوات الأداء**: تكامل محلل الحزم موجود في `Web/next.config.js` و`Web/package.json` عبر الأمر `"analyze": "ANALYZE=true next build"`.  
+- **خطة الأمن**: ملفات `api/src/auth/*` تحتوي على خارطة تنفيذ الرموز المزدوجة (Access/Refresh)، مع فرض التحقق عبر `class-validator` في DTO الحساسة.
+
 ## وحدة التحليلات بالتفصيل
 - ملخص: يُجمع روتينات التحليلات في Supabase لتغذية لوحات المتابعة ومؤشرات الأداء والتقارير التنفيذية.
 
