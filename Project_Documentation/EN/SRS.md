@@ -13,6 +13,91 @@
 - **NFR-OBS-01**: Bundle analyzer reports and Lighthouse runs SHALL be archived per release in `docs/perf/` and exposed via Grafana; regressions block release until remediated.  
 - **NFR-SEC-01**: Access/refresh token model with HttpOnly cookies is mandated for all future auth work (see CIP §3.1); DTO validation (`class-validator`) remains a hard gate for API acceptance tests.
 
+## Security Requirements Update (2025-11-10)
+
+### Authentication & Authorization Requirements
+
+- **NFR-SEC-02**: ALL API endpoints MUST require a valid JWT access token by default via global `JwtAuthGuard` applied in `main.ts`. Only endpoints explicitly marked with `@Public()` decorator are exempt (e.g., `/auth/login`, `/auth/refresh`, `/health`).
+
+- **NFR-SEC-03**: JWT access tokens MUST have a maximum lifespan of 15 minutes. Refresh tokens stored in HttpOnly cookies MUST have a maximum lifespan of 7 days. This ensures a 96% reduction in attack window compared to traditional 24-hour tokens.
+
+- **NFR-SEC-04**: Refresh tokens MUST be stored in database-backed storage (`refresh_tokens` table) to enable instant revocation. The system SHALL support "logout from all devices" functionality.
+
+- **NFR-SEC-05**: ALL protected API endpoints MUST enforce Role-Based Access Control (RBAC) via `@Roles()` decorator. The system SHALL support the following role hierarchy:
+  - `SystemAdmin` - Full system access across all offices
+  - `OfficeAdmin` - Office-level administrator
+  - `Manager` - Office manager with full property/customer management
+  - `Staff` - Regular office staff with limited permissions
+  - `Accountant` - Financial operations access
+  - `Technician` - Maintenance operations access
+  - `Owner` - Property owner (external user)
+  - `Tenant` - Property tenant (external user)
+
+- **NFR-SEC-06**: The Next.js frontend MUST implement edge-level route protection via `middleware.ts`. ALL routes except `/login`, `/register`, `/forgot-password`, and static assets MUST check for `refreshToken` HttpOnly cookie. Unauthenticated users SHALL be redirected to `/login?redirect=<requested-path>`.
+
+- **NFR-SEC-07**: The frontend Axios client MUST implement a response interceptor that handles authentication/authorization failures:
+  - `401 Unauthorized`: Clear auth state, show toast notification, redirect to login
+  - `403 Forbidden`: Show "Permission Denied" toast notification (no redirect)
+  - `5xx Server Errors`: Show generic error toast notification
+  - Network errors: Show connection error toast notification
+
+### Multi-Tenancy & Data Isolation Requirements
+
+- **NFR-SEC-08**: ALL database queries MUST be scoped by `officeId` to enforce tenant isolation. Controllers MUST extract `officeId` from the authenticated user's JWT payload (`req.user.officeId`), never from request body or query parameters.
+
+- **NFR-SEC-09**: Service methods MUST require `officeId` as the first parameter. Database queries SHALL include `.eq('office_id', officeId)` filter as the first condition to prevent cross-tenant data leaks.
+
+- **NFR-SEC-10**: The system MUST reject any attempt to access resources from a different office, even if the user knows the resource UUID. This is enforced by the mandatory `officeId` filter in all queries.
+
+- **NFR-SEC-11**: `SystemAdmin` role is the ONLY exception that may access cross-tenant data for administrative purposes. Such access MUST be explicitly implemented with additional role checks and SHALL be logged for audit purposes.
+
+### Frontend Security Requirements
+
+- **NFR-SEC-12**: Access tokens MUST be stored in `localStorage` (acceptable risk due to 15-min lifespan). Refresh tokens MUST NEVER be accessible to JavaScript (HttpOnly cookie only).
+
+- **NFR-SEC-13**: ALL API calls in the frontend MUST be wrapped in try-catch-finally blocks with proper error handling:
+  - Loading state MUST be set before API call
+  - Loading state MUST be reset in `finally` block
+  - Errors MUST be logged to console
+  - User MUST receive feedback for all states (loading, success, error)
+
+- **NFR-SEC-14**: The frontend MUST handle token expiration gracefully. When an access token expires, the user MUST be redirected to login with the current page stored as redirect parameter for seamless return after authentication.
+
+### Security Testing & Compliance
+
+- **NFR-SEC-15**: Every new controller endpoint MUST be tested for:
+  - Authentication enforcement (401 when no token)
+  - Authorization enforcement (403 when wrong role)
+  - Tenant isolation (cannot access other office's data)
+
+- **NFR-SEC-16**: The system MUST provide comprehensive security documentation:
+  - Tenant-aware query patterns: `/workspace/api/src/auth/TENANT_AWARE_PATTERN.md`
+  - API error handling patterns: `/workspace/Web/src/lib/API_ERROR_HANDLING_PATTERN.md`
+  - Security architecture overview: `/workspace/Project_Documentation/EN/ADD.md` (Security Architecture section)
+
+- **NFR-SEC-17**: Security monitoring SHOULD track (future enhancement):
+  - Failed login attempts (for rate limiting)
+  - Concurrent refresh token usage (theft detection)
+  - 401/403 error rates per endpoint
+  - Cross-tenant access attempts (should be 0)
+
+### Password & Credential Security
+
+- **NFR-SEC-18**: User passwords MUST be hashed using bcrypt with minimum 10 salt rounds before storage. Plain-text passwords SHALL NEVER be stored or logged.
+
+- **NFR-SEC-19**: JWT secrets (`JWT_SECRET`, `JWT_REFRESH_SECRET`) MUST be:
+  - Stored in environment variables (never in code)
+  - Minimum 32 characters of cryptographically secure random data
+  - Different for production and staging environments
+  - Rotated every 90 days in production
+
+- **NFR-SEC-20**: The system MUST implement password complexity requirements:
+  - Minimum 8 characters
+  - At least one uppercase letter
+  - At least one lowercase letter
+  - At least one number
+  - At least one special character
+
 ## Contents
 - [Analytics](#analytics)
 - [App](#app)

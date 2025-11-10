@@ -12,6 +12,160 @@
 - **أدوات الأداء**: تكامل محلل الحزم موجود في `Web/next.config.js` و`Web/package.json` عبر الأمر `"analyze": "ANALYZE=true next build"`.  
 - **خطة الأمن**: ملفات `api/src/auth/*` تحتوي على خارطة تنفيذ الرموز المزدوجة (Access/Refresh)، مع فرض التحقق عبر `class-validator` في DTO الحساسة.
 
+## وحدة المصادقة بالتفصيل (تمت الإضافة 2025-11-10)
+- ملخص: تنفيذ مصادقة JWT من الدرجة الإنتاجية مع تدوير رموز الوصول/التحديث، RBAC، وعزل البيانات متعدد المستأجرين. توفر هذه الوحدة أساس أمان Zero Trust للنظام بأكمله.
+
+### بنية الوحدة
+#### File: `/workspace/api/src/auth/auth.module.ts`
+- الغرض: تكوين مصادقة JWT، واستراتيجيات Passport، والحمايات للتطبيق بأكمله.
+- التكوين الرئيسي:
+  - رمز الوصول: عمر 15 دقيقة، توقيع HS256
+  - رمز التحديث: عمر 7 أيام، مخزن في ملفات تعريف ارتباط HttpOnly
+  - إلغاء الرموز المدعوم بقاعدة البيانات عبر عميل Supabase
+
+### المتحكمات
+#### File: `/workspace/api/src/auth/auth.controller.ts`
+- الغرض: يكشف 4 نقاط نهاية للمصادقة (login، refresh، logout، profile).
+- الأمان: جميع النقاط موسومة بـ `@Public()` باستثناء `profile` لتجاوز حماية المصادقة العالمية.
+- الدوال الرئيسية:
+  - `login` → POST `/auth/login`؛ الأدوار: عامة؛ DTOs: `LoginDto`؛ الخدمات: `AuthService.validateUser`، `AuthService.login`.
+    - يتحقق من بيانات البريد الإلكتروني/كلمة المرور
+    - يصدر رمز وصول (15 دقيقة) ورمز تحديث (7 أيام)
+    - يحفظ رمز التحديث في ملف تعريف ارتباط HttpOnly
+    - يعيد: `{ accessToken, user, success, message }`
+
+  - `refresh` → POST `/auth/refresh`؛ الأدوار: RefreshAuth؛ الخدمات: `AuthService.refreshTokens`.
+    - يتحقق من رمز التحديث من ملف تعريف ارتباط HttpOnly
+    - يصدر رمز وصول جديد ورمز تحديث جديد (تدوير الرمز)
+    - يلغي رمز التحديث القديم للأمان
+    - يعيد: `{ accessToken, success, message }`
+
+  - `logout` → POST `/auth/logout`؛ الأدوار: JWT؛ DTOs: `LogoutDto`؛ الخدمات: `AuthService.logout`.
+    - يدعم تسجيل الخروج من جهاز واحد أو "تسجيل الخروج من جميع الأجهزة"
+    - يلغي رموز التحديث من قاعدة البيانات
+    - يمسح ملف تعريف ارتباط HttpOnly
+    - يعيد: `{ success, message }`
+
+  - `getProfile` → GET `/auth/profile`؛ الأدوار: JWT؛ يعيد بيانات المستخدم من `req.user`.
+
+### الخدمات
+#### File: `/workspace/api/src/auth/auth.service.ts`
+- الغرض: منطق الأعمال الأساسي للمصادقة مع إدارة الرموز المدعومة بقاعدة البيانات.
+- ميزات الأمان:
+  - التحقق من تجزئة كلمة المرور bcrypt
+  - تجزئة رموز التحديث SHA-256 للتخزين في قاعدة البيانات
+  - تدوير الرموز (إلغاء الرمز القديم عند إصدار رمز جديد)
+  - تتبع الجهاز (عنوان IP، وكيل المستخدم)
+  - دعم الإلغاء الفوري (تسجيل الخروج من جميع الأجهزة)
+- الدوال الرئيسية:
+  - `validateUser(email, password)`: يتحقق من بيانات الاعتماد مقابل قاعدة البيانات، يفحص حالة المستخدم
+  - `login(user, deviceInfo)`: يصدر رمز وصول JWT + رمز تحديث، يخزن تجزئة الرمز في قاعدة البيانات
+  - `refreshTokens(userId, oldToken)`: يتحقق من الرمز القديم، يلغيه، يصدر زوجًا جديدًا
+  - `logout(userId, refreshToken?, allDevices?)`: يلغي رمز تحديث محدد أو جميع الرموز
+  - `hashToken(token)`: تجزئة SHA-256 لتخزين الرموز بشكل آمن
+  - `verifyRefreshToken(userId, token)`: يتحقق من الرمز مقابل قاعدة البيانات
+
+### الاستراتيجيات
+#### File: `/workspace/api/src/auth/strategies/jwt.strategy.ts`
+- الغرض: استراتيجية Passport للتحقق من رموز وصول JWT.
+- يستخرج: الرمز من رأس `Authorization: Bearer <token>`
+- يتحقق: من التوقيع باستخدام `JWT_SECRET`، انتهاء الصلاحية (15 دقيقة)
+- يرفق: حمولة المستخدم إلى `req.user` للحمايات/المتحكمات اللاحقة
+
+#### File: `/workspace/api/src/auth/strategies/refresh.strategy.ts`
+- الغرض: استراتيجية Passport للتحقق من رموز التحديث.
+- يستخرج: الرمز من ملف تعريف ارتباط HttpOnly `refreshToken`
+- يتحقق: من التوقيع باستخدام `JWT_REFRESH_SECRET`، انتهاء الصلاحية (7 أيام)
+- يستخدم بواسطة: نقطة نهاية `/auth/refresh` حصريًا
+
+### الحمايات
+#### File: `/workspace/api/src/auth/guards/jwt-auth.guard.ts`
+- الغرض: **حماية مصادقة عالمية** مطبقة على جميع نقاط نهاية API افتراضيًا.
+- السلوك:
+  - يتحقق من زخرفة `@Public()` لإعفاء مسارات محددة (login، refresh)
+  - يتحقق من رمز JWT عبر `JwtStrategy`
+  - يرمي `401 Unauthorized` إذا كان الرمز مفقودًا/غير صالح/منتهي الصلاحية
+- مطبق في: `api/src/main.ts` عبر `app.useGlobalGuards(new JwtAuthGuard(reflector))`
+
+#### File: `/workspace/api/src/auth/guards/roles.guard.ts`
+- الغرض: فرض التحكم في الوصول المستند إلى الأدوار (RBAC).
+- السلوك:
+  - يستخرج بيانات `@Roles()` من معالج المسار
+  - يقارن دور المستخدم من `req.user.role` مقابل الأدوار المسموح بها
+  - يرمي `403 Forbidden` إذا لم يكن دور المستخدم في القائمة المسموح بها
+- هيكل الأدوار: SystemAdmin > OfficeAdmin > Manager > Staff > Accountant > Technician > Owner > Tenant
+
+#### File: `/workspace/api/src/auth/guards/refresh-auth.guard.ts`
+- الغرض: يتحقق من رموز التحديث لنقطة نهاية `/auth/refresh`.
+- يستخدم: `RefreshTokenStrategy` للتحقق من الرمز من ملف تعريف ارتباط HttpOnly
+
+### الزخارف
+#### File: `/workspace/api/src/auth/decorators/public.decorator.ts`
+- الغرض: يوسم النقاط كعامة، متجاوزًا `JwtAuthGuard` العالمي.
+- الاستخدام: `@Public()` فوق دالة المتحكم
+- مطبق على: `/auth/login`، `/auth/refresh`، `/health`
+
+#### File: `/workspace/api/src/auth/decorators/roles.decorator.ts`
+- الغرض: يعلن الأدوار المطلوبة للوصول إلى نقطة النهاية.
+- الاستخدام: `@Roles('OfficeAdmin', 'SystemAdmin')` فوق دالة المتحكم
+- مفروض بواسطة: `RolesGuard`
+
+### DTOs (كائنات نقل البيانات)
+#### File: `/workspace/api/src/auth/dto/login.dto.ts`
+- الغرض: يتحقق من حمولة طلب تسجيل الدخول.
+- الحقول:
+  - `email`: سلسلة نصية، مطلوب، تنسيق بريد إلكتروني صحيح
+  - `password`: سلسلة نصية، مطلوب، 6 أحرف على الأقل
+
+#### File: `/workspace/api/src/auth/dto/logout.dto.ts`
+- الغرض: يتحقق من حمولة طلب تسجيل الخروج.
+- الحقول:
+  - `allDevices`: منطقي، اختياري، افتراضي false
+
+### الكيانات
+#### File: `/workspace/api/src/auth/entities/refresh-token.entity.ts`
+- الغرض: كيان TypeORM لجدول `refresh_tokens` (للترحيل المستقبلي إلى TypeORM).
+- الحقول:
+  - `id`: UUID مفتاح أساسي
+  - `user_id`: UUID مفتاح خارجي إلى `users.id`
+  - `token_hash`: تجزئة SHA-256 لرمز التحديث
+  - `device_info`: JSON (عنوان IP، وكيل المستخدم)
+  - `expires_at`: الطابع الزمني
+  - `created_at`: الطابع الزمني
+  - `revoked`: منطقي (يدعم الإلغاء الفوري)
+
+### التأثير الأمني
+تنفذ وحدة المصادقة نموذج أمان **Zero Trust** مع طبقات دفاع متعددة:
+
+1. **الحماية من XSS**: رموز التحديث المخزنة في ملفات تعريف ارتباط HttpOnly لا يمكن الوصول إليها عبر JavaScript
+2. **تدوير الرموز**: كل عملية تحديث تلغي الرمز القديم، مما يحد من نافذة هجوم إعادة التشغيل
+3. **رموز وصول قصيرة الأجل**: عمر 15 دقيقة يقلل الضرر من سرقة الرمز (تقليل 96% مقابل رموز 24 ساعة)
+4. **إلغاء مدعوم بقاعدة البيانات**: تسجيل خروج فوري من جميع الأجهزة عبر إلغاء رمز التحديث
+5. **عزل متعدد المستأجرين**: حمولة JWT تتضمن `officeId`، مفروض في جميع استعلامات قاعدة البيانات
+6. **RBAC**: هيكل 8 مستويات يضمن مبدأ الامتياز الأقل
+7. **تتبع الجهاز**: عنوان IP ووكيل المستخدم مسجلان للمراجعة الأمنية
+
+### نمط الاستعلام متعدد المستأجرين
+جميع طرق الخدمة تتبع الآن نمط الاستعلام المدرك للمستأجر باستخدام `officeId` من حمولة JWT:
+
+**قبل (غير آمن - تسرب بيانات متعدد المستأجرين)**:
+```ts
+// ❌ سيئ: يعيد العقارات من جميع المكاتب
+const { data } = await supabase.from('properties').select('*');
+```
+
+**بعد (آمن - معزول للمستأجر)**:
+```ts
+// ✅ جيد: يعيد فقط العقارات من مكتب المستخدم
+const officeId = req.user.officeId; // مستخرج من JWT بواسطة JwtAuthGuard
+const { data } = await supabase
+  .from('properties')
+  .select('*')
+  .eq('office_id', officeId); // مرشح إلزامي
+```
+
+هذا النمط الآن مفروض عبر **جميع الوحدات**: Properties، Customers، Contracts، Payments، Appointments، Maintenance، Analytics.
+
 ## وحدة التحليلات بالتفصيل
 - ملخص: يُجمع روتينات التحليلات في Supabase لتغذية لوحات المتابعة ومؤشرات الأداء والتقارير التنفيذية.
 

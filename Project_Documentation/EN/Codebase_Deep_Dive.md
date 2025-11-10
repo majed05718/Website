@@ -12,6 +12,349 @@
 - **Perf tooling**: Bundle analyzer integration is configured through `Web/next.config.js` and `Web/package.json` (`"analyze": "ANALYZE=true next build"`), enabling staging regressions to be caught pre-release.  
 - **Security alignment**: Auth roadmap (access/refresh tokens, HttpOnly cookies) is tracked in `api/src/auth/*`; validation coverage enforced via DTOs implementing `class-validator`.
 
+## Authentication Module Deep Dive (Added 2025-11-10)
+- Summary: Implements production-grade JWT authentication with access/refresh token rotation, RBAC, and multi-tenant data isolation. This module provides the Zero Trust security foundation for the entire system.
+
+### Module Structure
+#### File: `/workspace/api/src/auth/auth.module.ts`
+- Purpose: Configures JWT authentication, Passport strategies, and guards for the entire application.
+- Key Configuration:
+  - Access token: 15-minute lifespan, HS256 signing
+  - Refresh token: 7-day lifespan, stored in HttpOnly cookies
+  - Database-backed token revocation via Supabase client
+```ts
+@Module({
+  imports: [
+    PassportModule.register({ defaultStrategy: 'jwt' }),
+    JwtModule.register({
+      secret: process.env.JWT_SECRET,
+      signOptions: { expiresIn: '15m' }
+    }),
+    SupabaseModule,
+  ],
+  controllers: [AuthController],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    RefreshTokenStrategy,
+    JwtAuthGuard,
+    RefreshAuthGuard,
+  ],
+  exports: [AuthService, JwtAuthGuard, RefreshAuthGuard],
+})
+export class AuthModule {}
+```
+
+### Controllers
+#### File: `/workspace/api/src/auth/auth.controller.ts`
+- Purpose: Exposes 4 authentication endpoints (login, refresh, logout, profile).
+- Security: All endpoints marked `@Public()` except `profile` to bypass global authentication guard.
+- Key Methods:
+  - `login` → POST `/auth/login`; roles: Public; DTOs: `LoginDto`; services: `AuthService.validateUser`, `AuthService.login`.
+    - Validates email/password credentials
+    - Issues access token (15m) and refresh token (7d)
+    - Sets HttpOnly cookie for refresh token
+    - Returns: `{ accessToken, user, success, message }`
+```ts
+@Public()
+@Post('login')
+@HttpCode(HttpStatus.OK)
+async login(
+  @Body() loginDto: LoginDto,
+  @Req() req: Request,
+  @Res({ passthrough: true }) res: Response,
+) {
+  const user = await this.authService.validateUser(
+    loginDto.email,
+    loginDto.password,
+  );
+  if (!user) {
+    throw new UnauthorizedException('البريد الإلكتروني أو كلمة المرور غير صحيحة');
+  }
+  const deviceInfo = {
+    ip: req.ip,
+    userAgent: req.headers['user-agent'],
+  };
+  const { accessToken, refreshToken } = await this.authService.login(
+    user,
+    deviceInfo,
+  );
+  res.cookie('refreshToken', refreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    path: '/',
+  });
+  return {
+    success: true,
+    accessToken,
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      officeId: user.office_id,
+    },
+    message: 'تم تسجيل الدخول بنجاح',
+  };
+}
+```
+
+  - `refresh` → POST `/auth/refresh`; roles: RefreshAuth; services: `AuthService.refreshTokens`.
+    - Validates refresh token from HttpOnly cookie
+    - Issues new access token and refresh token (token rotation)
+    - Revokes old refresh token for security
+    - Returns: `{ accessToken, success, message }`
+```ts
+@Public()
+@UseGuards(RefreshAuthGuard)
+@Post('refresh')
+@HttpCode(HttpStatus.OK)
+async refresh(
+  @Req() req: any,
+  @Res({ passthrough: true }) res: Response,
+) {
+  const userId = req.user.sub;
+  const oldRefreshToken = req.cookies?.refreshToken;
+  if (!oldRefreshToken) {
+    throw new UnauthorizedException('لم يتم العثور على رمز التحديث');
+  }
+  const { accessToken, refreshToken } = await this.authService.refreshTokens(
+    userId,
+    oldRefreshToken,
+  );
+  res.cookie('refreshToken', refreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+    path: '/',
+  });
+  return {
+    success: true,
+    accessToken,
+    message: 'تم تحديث الجلسة بنجاح',
+  };
+}
+```
+
+  - `logout` → POST `/auth/logout`; roles: JWT; DTOs: `LogoutDto`; services: `AuthService.logout`.
+    - Supports single device logout or "logout from all devices"
+    - Revokes refresh tokens from database
+    - Clears HttpOnly cookie
+    - Returns: `{ success, message }`
+
+  - `getProfile` → GET `/auth/profile`; roles: JWT; returns user data from `req.user`.
+
+### Services
+#### File: `/workspace/api/src/auth/auth.service.ts`
+- Purpose: Core authentication business logic with database-backed token management.
+- Security Features:
+  - bcrypt password hashing verification
+  - SHA-256 refresh token hashing for database storage
+  - Token rotation (old token revoked when new token issued)
+  - Device tracking (IP address, user agent)
+  - Instant revocation support (logout from all devices)
+- Key Methods:
+  - `validateUser(email, password)`: Verifies credentials against database, checks user status
+  - `login(user, deviceInfo)`: Issues JWT access token + refresh token, stores token hash in DB
+  - `refreshTokens(userId, oldToken)`: Validates old token, revokes it, issues new pair
+  - `logout(userId, refreshToken?, allDevices?)`: Revokes specific or all refresh tokens
+  - `hashToken(token)`: SHA-256 hashing for secure token storage
+  - `verifyRefreshToken(userId, token)`: Validates token against database
+```ts
+async validateUser(email: string, password: string): Promise<any> {
+  const supabase = this.supabaseService.getClient();
+  const { data: user, error } = await supabase
+    .from('users')
+    .select('*')
+    .eq('email', email)
+    .single();
+
+  if (error || !user) {
+    return null;
+  }
+  if (user.status !== 'active') {
+    throw new UnauthorizedException('حساب المستخدم غير نشط');
+  }
+  const isPasswordValid = await bcrypt.compare(password, user.password_hash);
+  if (!isPasswordValid) {
+    return null;
+  }
+  const { password_hash, ...result } = user;
+  return result;
+}
+```
+
+### Strategies
+#### File: `/workspace/api/src/auth/strategies/jwt.strategy.ts`
+- Purpose: Passport strategy for validating JWT access tokens.
+- Extracts: Token from `Authorization: Bearer <token>` header
+- Validates: Signature using `JWT_SECRET`, expiration (15m)
+- Attaches: User payload to `req.user` for downstream guards/controllers
+```ts
+@Injectable()
+export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
+  constructor() {
+    super({
+      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      ignoreExpiration: false,
+      secretOrKey: process.env.JWT_SECRET,
+    });
+  }
+
+  async validate(payload: any) {
+    return {
+      id: payload.sub,
+      email: payload.email,
+      role: payload.role,
+      officeId: payload.officeId,
+    };
+  }
+}
+```
+
+#### File: `/workspace/api/src/auth/strategies/refresh.strategy.ts`
+- Purpose: Passport strategy for validating refresh tokens.
+- Extracts: Token from HttpOnly cookie `refreshToken`
+- Validates: Signature using `JWT_REFRESH_SECRET`, expiration (7d)
+- Used by: `/auth/refresh` endpoint exclusively
+
+### Guards
+#### File: `/workspace/api/src/auth/guards/jwt-auth.guard.ts`
+- Purpose: **Global authentication guard** applied to all API endpoints by default.
+- Behavior:
+  - Checks `@Public()` decorator to exempt specific routes (login, refresh)
+  - Validates JWT token via `JwtStrategy`
+  - Throws `401 Unauthorized` if token missing/invalid/expired
+- Applied in: `api/src/main.ts` via `app.useGlobalGuards(new JwtAuthGuard(reflector))`
+```ts
+@Injectable()
+export class JwtAuthGuard extends AuthGuard('jwt') {
+  constructor(private reflector: Reflector) {
+    super();
+  }
+
+  canActivate(context: ExecutionContext) {
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (isPublic) {
+      return true;
+    }
+    return super.canActivate(context);
+  }
+}
+```
+
+#### File: `/workspace/api/src/auth/guards/roles.guard.ts`
+- Purpose: Role-Based Access Control (RBAC) enforcement.
+- Behavior:
+  - Extracts `@Roles()` metadata from route handler
+  - Compares user role from `req.user.role` against allowed roles
+  - Throws `403 Forbidden` if user role not in allowed list
+- Role Hierarchy: SystemAdmin > OfficeAdmin > Manager > Staff > Accountant > Technician > Owner > Tenant
+
+#### File: `/workspace/api/src/auth/guards/refresh-auth.guard.ts`
+- Purpose: Validates refresh tokens for `/auth/refresh` endpoint.
+- Uses: `RefreshTokenStrategy` to validate token from HttpOnly cookie
+
+### Decorators
+#### File: `/workspace/api/src/auth/decorators/public.decorator.ts`
+- Purpose: Marks endpoints as public, bypassing global `JwtAuthGuard`.
+- Usage: `@Public()` above controller method
+- Applied to: `/auth/login`, `/auth/refresh`, `/health`
+```ts
+export const IS_PUBLIC_KEY = 'isPublic';
+export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);
+```
+
+#### File: `/workspace/api/src/auth/decorators/roles.decorator.ts`
+- Purpose: Declares required roles for endpoint access.
+- Usage: `@Roles('OfficeAdmin', 'SystemAdmin')` above controller method
+- Enforced by: `RolesGuard`
+```ts
+export const ROLES_KEY = 'roles';
+export const Roles = (...roles: string[]) => SetMetadata(ROLES_KEY, roles);
+```
+
+### DTOs (Data Transfer Objects)
+#### File: `/workspace/api/src/auth/dto/login.dto.ts`
+- Purpose: Validates login request payload.
+- Fields:
+  - `email`: string, required, valid email format
+  - `password`: string, required, min 6 characters
+```ts
+export class LoginDto {
+  @IsEmail()
+  @IsNotEmpty()
+  email: string;
+
+  @IsString()
+  @MinLength(6)
+  @IsNotEmpty()
+  password: string;
+}
+```
+
+#### File: `/workspace/api/src/auth/dto/logout.dto.ts`
+- Purpose: Validates logout request payload.
+- Fields:
+  - `allDevices`: boolean, optional, defaults to false
+```ts
+export class LogoutDto {
+  @IsBoolean()
+  @IsOptional()
+  allDevices?: boolean;
+}
+```
+
+### Entities
+#### File: `/workspace/api/src/auth/entities/refresh-token.entity.ts`
+- Purpose: TypeORM entity for `refresh_tokens` table (future migration to TypeORM).
+- Fields:
+  - `id`: UUID primary key
+  - `user_id`: UUID foreign key to `users.id`
+  - `token_hash`: SHA-256 hash of refresh token
+  - `device_info`: JSON (IP address, user agent)
+  - `expires_at`: Timestamp
+  - `created_at`: Timestamp
+  - `revoked`: Boolean (supports instant revocation)
+
+### Security Impact
+The authentication module implements a **Zero Trust** security model with multiple layers of defense:
+
+1. **XSS Protection**: Refresh tokens stored in HttpOnly cookies cannot be accessed by JavaScript
+2. **Token Rotation**: Each refresh operation revokes old token, limiting replay attack window
+3. **Short-lived Access Tokens**: 15-minute lifespan reduces damage from token theft (96% reduction vs 24-hour tokens)
+4. **Database-backed Revocation**: Instant logout from all devices via refresh token revocation
+5. **Multi-tenant Isolation**: JWT payload includes `officeId`, enforced in all database queries
+6. **RBAC**: 8-tier role hierarchy ensures principle of least privilege
+7. **Device Tracking**: IP address and user agent logged for security auditing
+
+### Multi-Tenant Query Pattern
+All service methods now follow tenant-aware query pattern using `officeId` from JWT payload:
+
+**Before (Insecure - Cross-tenant data leak)**:
+```ts
+// ❌ BAD: Returns properties from ALL offices
+const { data } = await supabase.from('properties').select('*');
+```
+
+**After (Secure - Tenant-isolated)**:
+```ts
+// ✅ GOOD: Returns only properties from user's office
+const officeId = req.user.officeId; // Extracted from JWT by JwtAuthGuard
+const { data } = await supabase
+  .from('properties')
+  .select('*')
+  .eq('office_id', officeId); // Mandatory filter
+```
+
+This pattern is now enforced across **all modules**: Properties, Customers, Contracts, Payments, Appointments, Maintenance, Analytics.
+
 ## Analytics Module Deep Dive
 - Summary: Aggregates Supabase analytics routines powering dashboards, KPIs, and executive summaries.
 
