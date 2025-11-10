@@ -195,6 +195,37 @@ psql -U estate_user -d real_estate_db -f supabase_schema.sql
 
 ## Production Deployment
 
+### ⚠️ Important Warnings Before Starting
+
+**MUST VERIFY:**
+
+1. **NODE_ENV MUST be standard:**
+   - ✅ Use ONLY: `production`, `development`, `test`
+   - ❌ DO NOT use: `staging`, `prod`, `local`, or any other value
+   - Next.js rejects non-standard values and shows warnings
+
+2. **Building the project is MANDATORY:**
+   - Next.js in production mode (`next start`) requires pre-building
+   - You MUST run `npm run build` before `npm start`
+   - The `.next` folder MUST contain `BUILD_ID`
+   - Without building, you'll get error: "Could not find a production build"
+
+3. **Disk Space and Memory:**
+   - Build process needs ~500MB of disk space
+   - Build process may take 2-5 minutes
+   - Do NOT interrupt the build process
+
+4. **Verify After Building:**
+   ```bash
+   # Verify Backend build
+   ls -la /opt/real-estate-management-system/api/dist/main.js
+   
+   # Verify Frontend build (MOST IMPORTANT!)
+   ls -la /opt/real-estate-management-system/Web/.next/BUILD_ID
+   ```
+
+---
+
 ### Step 1: Clone Repository
 
 ```bash
@@ -296,15 +327,28 @@ npm ci --production=false
 
 ### Step 5: Build Applications
 
+**⚠️ CRITICAL:** You MUST build the project before running in production mode!
+
 ```bash
 # Build backend
 cd /opt/real-estate-management-system/api
+export NODE_ENV=production
 npm run build
 
-# Build frontend
+# Verify build success
+ls -la dist/main.js  # Should exist
+
+# Build frontend (CRITICAL STEP!)
 cd /opt/real-estate-management-system/Web
+export NODE_ENV=production
 npm run build
+
+# Verify build success
+ls -la .next/BUILD_ID  # Should exist
+cat .next/BUILD_ID     # Display BUILD_ID
 ```
+
+**Note:** Frontend build process may take 2-5 minutes. Do NOT interrupt the process!
 
 ### Step 6: Start with PM2
 
@@ -655,11 +699,13 @@ curl -v -X POST http://localhost:3001/auth/login \
 pm2 logs dev-api | grep -i "auth"
 ```
 
-### Issue 4: Frontend Not Loading
+### Issue 4: Frontend Not Loading ⚠️ MOST COMMON
 
 **Symptoms:**
 - Browser shows "Cannot connect" or blank page
 - curl returns connection refused
+- ❌ Error: "Could not find a production build in the '.next' directory"
+- ⚠️ Warning: "You are using a non-standard NODE_ENV value"
 
 **Solutions:**
 
@@ -670,22 +716,42 @@ pm2 status | grep frontend
 # 2. Check frontend logs
 pm2 logs dev-frontend --lines 50
 
-# 3. Verify Next.js build completed
+# 3. Verify Next.js build completed (MOST COMMON CAUSE!)
 cd /opt/real-estate-management-system/Web
-ls -la .next/  # Should contain build artifacts
+ls -la .next/BUILD_ID  # MUST exist
 
-# 4. Rebuild frontend
-npm run build
+# If BUILD_ID doesn't exist, BUILD THE PROJECT:
+# 4. Rebuild frontend (PRIMARY SOLUTION)
+export NODE_ENV=production  # IMPORTANT: Use production only!
+rm -rf .next  # Remove old build
+npm run build  # New build (takes 2-5 minutes)
 
-# 5. Check API connection
-cat .env.production | grep NEXT_PUBLIC_API_URL
+# 5. Verify build success
+ls -la .next/BUILD_ID && echo "✅ Build succeeded" || echo "❌ Build failed"
 
-# 6. Test API from frontend perspective
+# 6. Check NODE_ENV in PM2
+cd /opt/real-estate-management-system
+grep "NODE_ENV" ecosystem.config.js
+# Should be: NODE_ENV: 'production' (NOT staging or development)
+
+# 7. Check API connection
+cat Web/.env.production | grep NEXT_PUBLIC_API_URL
+
+# 8. Test API from frontend perspective
 curl http://localhost:3001/health
 
-# 7. Restart frontend
+# 9. Restart frontend
 pm2 restart dev-frontend
+
+# 10. Monitor logs
+pm2 logs dev-frontend --lines 100
 ```
+
+**⚠️ IMPORTANT NOTE:**
+- Next.js REQUIRES **building the project** before `next start`
+- Use ONLY `NODE_ENV=production` or `development` (DO NOT use `staging`)
+- The `.next` folder contains optimized production files
+- Build MUST be done every time you update the code
 
 ### Issue 5: CORS Errors
 
@@ -731,9 +797,19 @@ git fetch origin
 git checkout main
 git pull origin main
 
-# Install new dependencies
-cd api && npm ci --production=false && npm run build
-cd ../Web && npm ci --production=false && npm run build
+# Install new dependencies and build (IMPORTANT!)
+cd api
+npm ci --production=false
+export NODE_ENV=production
+npm run build
+ls -la dist/main.js  # Verify build
+
+cd ../Web
+npm ci --production=false
+export NODE_ENV=production
+rm -rf .next  # Remove old build
+npm run build  # New build (2-5 minutes)
+ls -la .next/BUILD_ID  # Verify build
 
 # Restart applications (zero-downtime restart)
 cd ..
@@ -1013,6 +1089,100 @@ This playbook has been verified against:
 
 **Last Verified:** 2025-11-10  
 **Certification:** Lead DevOps Engineer
+
+---
+
+## Appendix: Common Issues and Prevention
+
+### ❌ MOST COMMON ISSUE: Frontend Not Working
+
+**Root Causes:**
+1. Project not built before running in production mode
+2. Using non-standard `NODE_ENV` value (like `staging`)
+
+**Prevention:**
+
+1. **ALWAYS build the project before deployment:**
+   ```bash
+   cd /opt/real-estate-management-system/Web
+   export NODE_ENV=production
+   npm run build
+   ls -la .next/BUILD_ID  # Verify
+   ```
+
+2. **Use ONLY standard NODE_ENV values:**
+   - ✅ `production` for production
+   - ✅ `development` for development
+   - ✅ `test` for testing
+   - ❌ **DO NOT use**: `staging`, `prod`, `local`
+
+3. **Update ecosystem.config.js:**
+   ```javascript
+   // ✅ CORRECT
+   env: {
+     NODE_ENV: 'production',
+     PORT: 3000,
+   }
+   
+   // ❌ WRONG
+   env: {
+     NODE_ENV: 'staging',  // Next.js rejects this
+     PORT: 3000,
+   }
+   ```
+
+4. **Create a safe deployment script:**
+   ```bash
+   #!/bin/bash
+   # deploy-safe.sh
+   
+   echo "=== Safe Deployment ==="
+   
+   # 1. Set environment
+   export NODE_ENV=production
+   
+   # 2. Pull updates
+   git pull origin main
+   
+   # 3. Install dependencies
+   cd api && npm ci --production=false
+   cd ../Web && npm ci --production=false
+   
+   # 4. Build (CRITICAL STEP!)
+   cd ../api
+   npm run build || { echo "❌ Backend build failed"; exit 1; }
+   
+   cd ../Web
+   rm -rf .next
+   npm run build || { echo "❌ Frontend build failed"; exit 1; }
+   
+   # 5. Verify builds
+   cd ..
+   [ -f "api/dist/main.js" ] && echo "✅ Backend built" || { echo "❌ Backend build missing"; exit 1; }
+   [ -f "Web/.next/BUILD_ID" ] && echo "✅ Frontend built" || { echo "❌ Frontend build missing"; exit 1; }
+   
+   # 6. Restart
+   pm2 reload all
+   
+   # 7. Verify
+   sleep 5
+   curl http://localhost:3001/health
+   curl -I http://localhost:3000
+   
+   echo "✅ Deployment completed successfully"
+   ```
+
+5. **Pre-Deployment Checklist:**
+   - [ ] `NODE_ENV=production` in all files
+   - [ ] `npm run build` executed for frontend
+   - [ ] `.next/BUILD_ID` file exists
+   - [ ] `api/dist/main.js` file exists
+   - [ ] No `staging` values in ecosystem.config.js
+
+**Helpful Resources:**
+- Auto-fix script: `/workspace/fix-frontend-production.sh`
+- Status check script: `/workspace/check-frontend-status.sh`
+- Comprehensive fix guide: `/workspace/FRONTEND_FIX_GUIDE.md`
 
 ---
 
