@@ -6,7 +6,7 @@ module.exports = {
       script: 'dist/main.js',
       instances: 1,
       env: {
-        NODE_ENV: 'production',  // ✅ تم التصحيح من development
+        NODE_ENV: 'production',  // ✅ قيمة قياسية
         PORT: 3001,
       },
       error_file: '/var/log/pm2/backend-error.log',
@@ -18,11 +18,11 @@ module.exports = {
       name: 'frontend',
       cwd: './Web',
       script: 'node_modules/next/dist/bin/next',
-      args: 'start -p 8088',  // ✅ تم تحديث البورت ليطابق package.json
+      args: 'start -p 8088',  // البورت المطلوب
       instances: 1,
       env: {
-        NODE_ENV: 'production',  // ✅ تم التصحيح من development
-        PORT: 8088,  // ✅ تم تحديث البورت ليطابق الإعدادات الحالية
+        NODE_ENV: 'production',  // ✅ قيمة قياسية (وليس staging)
+        PORT: 8088,
       },
       error_file: '/var/log/pm2/frontend-error.log',
       out_file: '/var/log/pm2/frontend-out.log',
