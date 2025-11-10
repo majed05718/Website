@@ -7,17 +7,10 @@
  */
 
 import { useState } from 'react'
+import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
 import { Download, Share, Printer, Calendar } from 'lucide-react'
-import {
-  SummaryCards,
-  RevenueBreakdown,
-  SalesFunnel,
-  KPIsGrid,
-  TopPerformers,
-  MarketInsights,
-  GoalsTracking
-} from '@/components/analytics/executive'
+import { ChartLoadingSkeleton, ComponentLoadingSkeleton } from '@/components/ui/loading-skeleton'
 import type {
   ExecutiveSummaryCard,
   RevenueBreakdownData,
@@ -27,6 +20,42 @@ import type {
   MarketInsight,
   Goal
 } from '@/types/analytics'
+
+// Dynamic imports for heavy components
+const SummaryCards = dynamic(
+  () => import('@/components/analytics/executive').then(mod => ({ default: mod.SummaryCards })),
+  { ssr: false, loading: () => <ComponentLoadingSkeleton /> }
+)
+
+const RevenueBreakdown = dynamic(
+  () => import('@/components/analytics/executive').then(mod => ({ default: mod.RevenueBreakdown })),
+  { ssr: false, loading: () => <ChartLoadingSkeleton /> }
+)
+
+const SalesFunnel = dynamic(
+  () => import('@/components/analytics/executive').then(mod => ({ default: mod.SalesFunnel })),
+  { ssr: false, loading: () => <ChartLoadingSkeleton /> }
+)
+
+const KPIsGrid = dynamic(
+  () => import('@/components/analytics/executive').then(mod => ({ default: mod.KPIsGrid })),
+  { ssr: false, loading: () => <ComponentLoadingSkeleton /> }
+)
+
+const TopPerformers = dynamic(
+  () => import('@/components/analytics/executive').then(mod => ({ default: mod.TopPerformers })),
+  { ssr: false, loading: () => <ComponentLoadingSkeleton /> }
+)
+
+const MarketInsights = dynamic(
+  () => import('@/components/analytics/executive').then(mod => ({ default: mod.MarketInsights })),
+  { ssr: false, loading: () => <ChartLoadingSkeleton /> }
+)
+
+const GoalsTracking = dynamic(
+  () => import('@/components/analytics/executive').then(mod => ({ default: mod.GoalsTracking })),
+  { ssr: false, loading: () => <ComponentLoadingSkeleton /> }
+)
 
 export default function ExecutiveDashboardPage() {
   const [isLoading, setIsLoading] = useState(false)
