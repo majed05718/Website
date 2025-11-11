@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { AuthService } from './auth.service';
@@ -13,16 +14,20 @@ import { SupabaseModule } from '../supabase/supabase.module';
  * Authentication Module
  * 
  * Provides JWT-based authentication with refresh token support
- * Uses Supabase for database operations until TypeORM migration is complete
+ * Uses centralized ConfigService for all JWT settings
  */
 @Module({
   imports: [
     PassportModule.register({ defaultStrategy: 'jwt' }),
-    JwtModule.register({
-      secret: process.env.JWT_SECRET || 'default-secret-change-in-production',
-      signOptions: {
-        expiresIn: process.env.JWT_EXPIRES_IN || '15m',
-      },
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: async (configService: ConfigService) => ({
+        secret: configService.get<string>('app.jwt.secret', 'default-secret-change-in-production'),
+        signOptions: {
+          expiresIn: configService.get<string>('app.jwt.expiresIn', '15m'),
+        },
+      }),
     }),
     SupabaseModule,
   ],
