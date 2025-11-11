@@ -27,9 +27,9 @@ export class AuthService {
   async validateUser(email: string, password: string): Promise<any> {
     const supabase = this.supabaseService.getClient();
     
-    // Find user by email
+    // Find user by email in user_permissions table
     const { data: user, error } = await supabase
-      .from('users')
+      .from('user_permissions')
       .select('*')
       .eq('email', email)
       .single();
@@ -39,8 +39,13 @@ export class AuthService {
     }
 
     // Check if user is active
-    if (user.status !== 'active') {
+    if (!user.is_active) {
       throw new UnauthorizedException('حساب المستخدم غير نشط');
+    }
+
+    // Check status if it exists (some users may not have status field)
+    if (user.status && user.status !== 'active' && user.status !== 'pending') {
+      throw new UnauthorizedException('حساب المستخدم معلق أو محظور');
     }
 
     // Compare password with bcrypt hash
@@ -103,12 +108,12 @@ export class AuthService {
     // Get user details
     const supabase = this.supabaseService.getClient();
     const { data: user, error } = await supabase
-      .from('users')
-      .select('id, email, role, office_id, status')
+      .from('user_permissions')
+      .select('id, email, role, office_id, is_active, status')
       .eq('id', userId)
       .single();
       
-    if (error || !user || user.status !== 'active') {
+    if (error || !user || !user.is_active) {
       throw new UnauthorizedException('المستخدم غير موجود أو غير نشط');
     }
     

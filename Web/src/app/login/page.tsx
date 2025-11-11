@@ -6,12 +6,14 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
 import { toast } from 'sonner'
-import { Eye, EyeOff, Phone, Lock, Home } from 'lucide-react'
+import { Eye, EyeOff, Mail, Lock, Home } from 'lucide-react'
 import { useAuthStore } from '@/store/auth-store'
+import api from '@/lib/api'
+import { AxiosError } from 'axios'
 
 const loginSchema = z.object({
-  phone: z.string().regex(/^5[0-9]{8}$/, 'رقم الجوال يجب أن يبدأ بـ 5 ويتكون من 9 أرقام'),
-  password: z.string().min(6, 'كلمة المرور يجب أن تكون 6 أحرف على الأقل'),
+  email: z.string().email('البريد الإلكتروني غير صالح'),
+  password: z.string().min(8, 'كلمة المرور يجب أن تكون 8 أحرف على الأقل'),
 })
 
 type LoginForm = z.infer<typeof loginSchema>
@@ -33,30 +35,49 @@ export default function LoginPage() {
   const onSubmit = async (data: LoginForm) => {
     setIsLoading(true)
     try {
-      // ⚠️ Development only - skip API validation
-const mockUser = {
-  id: '1-mock',
-  name: 'Majed Admin',
-  phone: '0500000000',
-  role: 'admin',
-  officeId: 'office-1',
-  email: 'mock.user@example.com', // <-- السطر المضاف
-};
+      // Make real API call to backend login endpoint
+      const response = await api.post('/api/auth/login', {
+        email: data.email,
+        password: data.password,
+      })
 
-      const mockToken = 'dev-token-' + Date.now()
+      // Extract data from backend response
+      const { accessToken, user } = response.data
 
-      // Save to Zustand store
-      setAuth(mockUser, mockToken)
-
-      // Save to cookie for middleware
+      // Save access token to localStorage (for API requests)
       if (typeof window !== 'undefined') {
-        document.cookie = `auth_token=${mockToken}; path=/; max-age=${60 * 60 * 24 * 7}` // 7 days
+        localStorage.setItem('auth_token', accessToken)
       }
 
-      toast.success('تم تسجيل الدخول بنجاح')
+      // Save user data to Zustand store
+      setAuth(user, accessToken)
+
+      // Show success message
+      toast.success('تم تسجيل الدخول بنجاح', {
+        description: `مرحباً ${user.name}`,
+      })
+
+      // Redirect to dashboard
       router.push('/dashboard')
     } catch (error) {
-      toast.error('حدث خطأ في تسجيل الدخول')
+      // Handle authentication errors
+      console.error('Login error:', error)
+
+      if (error instanceof AxiosError) {
+        const errorMessage = error.response?.data?.message || 
+                           error.response?.data?.error ||
+                           'حدث خطأ في تسجيل الدخول'
+        
+        toast.error(errorMessage, {
+          description: error.response?.status === 401 
+            ? 'تحقق من البريد الإلكتروني وكلمة المرور'
+            : 'يرجى المحاولة مرة أخرى',
+        })
+      } else {
+        toast.error('حدث خطأ في الاتصال بالخادم', {
+          description: 'يرجى التحقق من الاتصال بالإنترنت',
+        })
+      }
     } finally {
       setIsLoading(false)
     }
@@ -76,34 +97,31 @@ const mockUser = {
           <p className="text-gray-600">
             مرحباً بك! سجل دخولك للمتابعة
           </p>
-          <p className="text-sm text-orange-600 mt-2">
-            ⚠️ وضع التطوير: أدخل أي بيانات صحيحة
-          </p>
         </div>
 
         {/* Login Card */}
         <div className="bg-white rounded-2xl shadow-xl p-8">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-            {/* Phone Input */}
+            {/* Email Input */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                رقم الجوال
+                البريد الإلكتروني
               </label>
               <div className="relative">
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2 pointer-events-none">
-                  <Phone className="w-5 h-5 text-gray-400" />
-                  <span className="text-gray-500">966+</span>
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                  <Mail className="w-5 h-5 text-gray-400" />
                 </div>
                 <input
-                  {...register('phone')}
-                  type="tel"
-                  placeholder="501234567"
-                  className="w-full pr-24 pl-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  {...register('email')}
+                  type="email"
+                  placeholder="example@company.com"
+                  className="w-full pr-12 pl-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   disabled={isLoading}
+                  autoComplete="email"
                 />
               </div>
-              {errors.phone && (
-                <p className="mt-1 text-sm text-red-600">{errors.phone.message}</p>
+              {errors.email && (
+                <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
               )}
             </div>
 
