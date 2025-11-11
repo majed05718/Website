@@ -1,8 +1,8 @@
 #!/usr/bin/env ts-node
 /**
- * SuperAdmin User Seeder Script
+ * SuperAdmin User Seeder Script (FIXED VERSION)
  * 
- * This script creates the first system administrator user in the database.
+ * This is a fixed version that works with minimal office table columns.
  * 
  * Usage:
  *   npm run seed:superadmin -- --email="admin@example.com" --password="YourSecurePassword123!" --name="Admin Name"
@@ -39,7 +39,7 @@ function logHeader(title: string) {
 }
 
 async function main() {
-  logHeader('🔐 SuperAdmin User Seeder');
+  logHeader('🔐 SuperAdmin User Seeder (Fixed)');
 
   // Load environment variables
   const envPath = path.resolve(__dirname, '../../../.env');
@@ -123,7 +123,7 @@ async function main() {
     // Check if user already exists
     log('🔍 Checking if user already exists...', colors.cyan);
     const { data: existingUser } = await supabase
-      .from('user_permissions')
+      .from('users')
       .select('id, email')
       .eq('email', email)
       .single();
@@ -146,12 +146,13 @@ async function main() {
 
     if (!systemOffice.data) {
       log('🏢 Creating system office...', colors.cyan);
+      
+      // Try with minimal fields first
       const { data: newOffice, error: officeError } = await supabase
         .from('offices')
         .insert({
           office_code: 'system',
           office_name: 'System Administration',
-          whatsapp_number: '+966500000000',
         })
         .select()
         .single();
@@ -176,7 +177,7 @@ async function main() {
     // Create superadmin user
     log('👤 Creating superadmin user...', colors.cyan);
     const { data: newUser, error: userError } = await supabase
-      .from('user_permissions')
+      .from('users')
       .insert({
         office_id: officeId,
         name: name,
@@ -185,6 +186,7 @@ async function main() {
         role: 'system_admin',
         password_hash: passwordHash,
         is_active: true,
+        status: 'active',
         permissions: {
           all: true,
           system_admin: true,
@@ -195,7 +197,6 @@ async function main() {
 
     if (userError) {
       log('❌ Error creating user: ' + userError.message, colors.red);
-      log('Error details: ' + JSON.stringify(userError, null, 2), colors.yellow);
       throw userError;
     }
 
@@ -217,12 +218,7 @@ async function main() {
 
   } catch (error: any) {
     log('\n❌ Fatal Error:', colors.red + colors.bold);
-    log(error.message || 'Unknown error', colors.red);
-    if (error.details) log('Details: ' + error.details, colors.yellow);
-    if (error.hint) log('Hint: ' + error.hint, colors.yellow);
-    if (error.code) log('Code: ' + error.code, colors.yellow);
-    log('\nFull error object:', colors.yellow);
-    console.log(JSON.stringify(error, null, 2));
+    log(error.message || error, colors.red);
     console.log();
     process.exit(1);
   }
