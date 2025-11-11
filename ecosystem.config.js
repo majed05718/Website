@@ -19,12 +19,13 @@ module.exports = {
       script: './dist/main.js',
       cwd: './api',
       instances: 1,
-      exec_mode: 'cluster',
+      exec_mode: 'fork',
       watch: false,
       max_memory_restart: '500M',
       env: {
         NODE_ENV: 'production',
-        // PORT and other configs will be read from api/.env.production
+        PORT: 3001,
+        // Other configs will be read from api/.env.production
       },
       error_file: './logs/prod-api-error.log',
       out_file: './logs/prod-api-out.log',
@@ -36,12 +37,11 @@ module.exports = {
       args: 'start',
       cwd: './Web',
       instances: 1,
-      exec_mode: 'cluster',
+      exec_mode: 'fork',
       watch: false,
       max_memory_restart: '500M',
       env: {
         NODE_ENV: 'production',
-        // PORT will be read from environment (set by Next.js)
         PORT: 3000,
       },
       error_file: './logs/prod-frontend-error.log',
@@ -57,11 +57,13 @@ module.exports = {
       script: './dist/main.js',
       cwd: './api',
       instances: 1,
+      exec_mode: 'fork',
       watch: false,
       max_memory_restart: '500M',
       env: {
         NODE_ENV: 'development',
-        // PORT and other configs will be read from api/.env.development
+        PORT: 3002,
+        // Other configs will be read from api/.env.development
       },
       error_file: './logs/dev-api-error.log',
       out_file: './logs/dev-api-out.log',
@@ -73,11 +75,11 @@ module.exports = {
       args: 'start',
       cwd: './Web',
       instances: 1,
+      exec_mode: 'fork',
       watch: false,
       max_memory_restart: '500M',
       env: {
         NODE_ENV: 'development',
-        // PORT will be read from environment (set by Next.js)
         PORT: 8088,
       },
       error_file: './logs/dev-frontend-error.log',
