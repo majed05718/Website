@@ -1,8 +1,8 @@
 #!/usr/bin/env ts-node
 /**
- * SuperAdmin User Seeder Script
+ * SuperAdmin User Seeder Script (FIXED VERSION)
  * 
- * This script creates the first system administrator user in the database.
+ * This is a fixed version that works with minimal office table columns.
  * 
  * Usage:
  *   npm run seed:superadmin -- --email="admin@example.com" --password="YourSecurePassword123!" --name="Admin Name"
@@ -39,7 +39,7 @@ function logHeader(title: string) {
 }
 
 async function main() {
-  logHeader('🔐 SuperAdmin User Seeder');
+  logHeader('🔐 SuperAdmin User Seeder (Fixed)');
 
   // Load environment variables
   const envPath = path.resolve(__dirname, '../../../.env');
@@ -146,6 +146,8 @@ async function main() {
 
     if (!systemOffice.data) {
       log('🏢 Creating system office...', colors.cyan);
+      
+      // Try with minimal fields first
       const { data: newOffice, error: officeError } = await supabase
         .from('offices')
         .insert({
