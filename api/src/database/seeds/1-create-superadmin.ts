@@ -180,7 +180,7 @@ async function main() {
       .insert({
         office_id: officeId,
         name: name,
-        phone: phone,
+        phone_number: phone,
         email: email,
         role: 'system_admin',
         password_hash: passwordHash,
