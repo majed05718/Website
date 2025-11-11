@@ -151,10 +151,7 @@ async function main() {
         .insert({
           office_code: 'system',
           office_name: 'System Administration',
-          max_properties: 999999,
-          max_users: 999999,
-          subscription_plan: 'enterprise',
-          onboarding_completed: true,
+                    whatsapp_number: '+966500000000',
         })
         .select()
         .single();
