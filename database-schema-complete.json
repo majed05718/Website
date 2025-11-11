@@ -1,0 +1,705 @@
+{
+  "offices": {
+    "table_name": "offices",
+    "description": "Stores information about property management offices/companies",
+    "columns": [
+      {
+        "column_name": "id",
+        "data_type": "uuid",
+        "is_nullable": false,
+        "constraints": ["PRIMARY KEY"],
+        "description": "Unique identifier for the office"
+      },
+      {
+        "column_name": "office_code",
+        "data_type": "character varying",
+        "is_nullable": false,
+        "constraints": ["UNIQUE"],
+        "description": "Unique code for the office"
+      },
+      {
+        "column_name": "office_name",
+        "data_type": "character varying",
+        "is_nullable": false,
+        "description": "Name of the office"
+      },
+      {
+        "column_name": "whatsapp_number",
+        "data_type": "character varying",
+        "is_nullable": false,
+        "description": "WhatsApp contact number for the office"
+      },
+      {
+        "column_name": "whatsapp_phone_number",
+        "data_type": "character varying",
+        "is_nullable": true,
+        "description": "Alternative WhatsApp phone number"
+      },
+      {
+        "column_name": "subscription_plan",
+        "data_type": "character varying",
+        "is_nullable": true,
+        "description": "Current subscription plan (free, basic, premium, enterprise)"
+      },
+      {
+        "column_name": "subscription_status",
+        "data_type": "character varying",
+        "is_nullable": true,
+        "description": "Status of the subscription (active, inactive, expired)"
+      },
+      {
+        "column_name": "monthly_messages_used",
+        "data_type": "integer",
+        "is_nullable": true,
+        "description": "Number of WhatsApp messages used this month"
+      },
+      {
+        "column_name": "monthly_messages_limit",
+        "data_type": "integer",
+        "is_nullable": true,
+        "description": "Monthly WhatsApp message limit based on plan"
+      },
+      {
+        "column_name": "location_city",
+        "data_type": "character varying",
+        "is_nullable": true,
+        "description": "City where the office is located"
+      },
+      {
+        "column_name": "manager_name",
+        "data_type": "character varying",
+        "is_nullable": true,
+        "description": "Name of the office manager"
+      },
+      {
+        "column_name": "contact_email",
+        "data_type": "character varying",
+        "is_nullable": true,
+        "description": "Contact email for the office"
+      },
+      {
+        "column_name": "whatsapp_api_token",
+        "data_type": "character varying",
+        "is_nullable": true,
+        "description": "API token for WhatsApp integration"
+      },
+      {
+        "column_name": "whatsapp_api_url",
+        "data_type": "character varying",
+        "is_nullable": true,
+        "description": "WhatsApp API endpoint URL"
+      },
+      {
+        "column_name": "logo_url",
+        "data_type": "text",
+        "is_nullable": true,
+        "description": "URL to the office logo"
+      },
+      {
+        "column_name": "website_url",
+        "data_type": "text",
+        "is_nullable": true,
+        "description": "Office website URL"
+      },
+      {
+        "column_name": "office_address",
+        "data_type": "text",
+        "is_nullable": true,
+        "description": "Physical address of the office"
+      },
+      {
+        "column_name": "created_at",
+        "data_type": "timestamp without time zone",
+        "is_nullable": true,
+        "description": "Timestamp when the office was created"
+      },
+      {
+        "column_name": "updated_at",
+        "data_type": "timestamp without time zone",
+        "is_nullable": true,
+        "description": "Timestamp when the office was last updated"
+      }
+    ],
+    "primary_keys": ["id"],
+    "unique_constraints": [["office_code"]],
+    "foreign_keys": [],
+    "indexes": ["office_code"]
+  },
+  "user_permissions": {
+    "table_name": "user_permissions",
+    "description": "Stores user accounts, roles, and permissions for the system",
+    "columns": [
+      {
+        "column_name": "id",
+        "data_type": "uuid",
+        "is_nullable": false,
+        "constraints": ["PRIMARY KEY"],
+        "description": "Unique identifier for the user"
+      },
+      {
+        "column_name": "office_id",
+        "data_type": "uuid",
+        "is_nullable": false,
+        "constraints": ["FK → offices(id)"],
+        "description": "Reference to the office this user belongs to"
+      },
+      {
+        "column_name": "user_id",
+        "data_type": "uuid",
+        "is_nullable": true,
+        "description": "Optional external user ID reference"
+      },
+      {
+        "column_name": "name",
+        "data_type": "character varying",
+        "is_nullable": false,
+        "description": "Full name of the user"
+      },
+      {
+        "column_name": "phone_number",
+        "data_type": "character varying",
+        "is_nullable": false,
+        "constraints": ["UNIQUE"],
+        "description": "Phone number (unique across system)"
+      },
+      {
+        "column_name": "email",
+        "data_type": "character varying",
+        "is_nullable": false,
+        "constraints": ["UNIQUE"],
+        "description": "Email address (unique across system)"
+      },
+      {
+        "column_name": "role",
+        "data_type": "character varying",
+        "is_nullable": false,
+        "description": "User role (system_admin, office_admin, staff, viewer)"
+      },
+      {
+        "column_name": "password_hash",
+        "data_type": "text",
+        "is_nullable": true,
+        "description": "Bcrypt hashed password"
+      },
+      {
+        "column_name": "is_active",
+        "data_type": "boolean",
+        "is_nullable": false,
+        "description": "Whether the user account is active"
+      },
+      {
+        "column_name": "status",
+        "data_type": "character varying",
+        "is_nullable": true,
+        "description": "Account status (active, pending, suspended)"
+      },
+      {
+        "column_name": "permissions",
+        "data_type": "jsonb",
+        "is_nullable": true,
+        "description": "JSON object containing granular permissions"
+      },
+      {
+        "column_name": "last_login",
+        "data_type": "timestamp without time zone",
+        "is_nullable": true,
+        "description": "Timestamp of last successful login"
+      },
+      {
+        "column_name": "created_at",
+        "data_type": "timestamp without time zone",
+        "is_nullable": false,
+        "description": "Timestamp when the user was created"
+      },
+      {
+        "column_name": "updated_at",
+        "data_type": "timestamp without time zone",
+        "is_nullable": false,
+        "description": "Timestamp when the user was last updated"
+      }
+    ],
+    "primary_keys": ["id"],
+    "unique_constraints": [["email"], ["phone_number"]],
+    "foreign_keys": [
+      {
+        "column_name": "office_id",
+        "foreign_table": "offices",
+        "foreign_column": "id",
+        "on_delete": "CASCADE"
+      }
+    ],
+    "indexes": ["office_id", "email", "phone_number", "role"]
+  },
+  "properties": {
+    "table_name": "properties",
+    "description": "Stores real estate property listings managed by offices",
+    "columns": [
+      {
+        "column_name": "id",
+        "data_type": "uuid",
+        "is_nullable": false,
+        "constraints": ["PRIMARY KEY"],
+        "description": "Unique identifier for the property"
+      },
+      {
+        "column_name": "office_id",
+        "data_type": "uuid",
+        "is_nullable": true,
+        "constraints": ["FK → offices(id)"],
+        "description": "Reference to the office managing this property"
+      },
+      {
+        "column_name": "property_code",
+        "data_type": "character varying",
+        "is_nullable": true,
+        "description": "Internal property code/reference"
+      },
+      {
+        "column_name": "property_type",
+        "data_type": "character varying",
+        "is_nullable": false,
+        "description": "Type of property (apartment, villa, commercial, etc.)"
+      },
+      {
+        "column_name": "listing_type",
+        "data_type": "character varying",
+        "is_nullable": true,
+        "description": "Listing type (sale, rent, both)"
+      },
+      {
+        "column_name": "title",
+        "data_type": "character varying",
+        "is_nullable": true,
+        "description": "Property title/headline"
+      },
+      {
+        "column_name": "description",
+        "data_type": "text",
+        "is_nullable": true,
+        "description": "Detailed property description"
+      },
+      {
+        "column_name": "price",
+        "data_type": "numeric",
+        "is_nullable": false,
+        "description": "Property price or rental amount"
+      },
+      {
+        "column_name": "currency",
+        "data_type": "character varying",
+        "is_nullable": true,
+        "description": "Currency code (SAR, USD, etc.)"
+      },
+      {
+        "column_name": "area_sqm",
+        "data_type": "numeric",
+        "is_nullable": true,
+        "description": "Property area in square meters"
+      },
+      {
+        "column_name": "bedrooms",
+        "data_type": "integer",
+        "is_nullable": true,
+        "description": "Number of bedrooms"
+      },
+      {
+        "column_name": "bathrooms",
+        "data_type": "integer",
+        "is_nullable": true,
+        "description": "Number of bathrooms"
+      },
+      {
+        "column_name": "location_city",
+        "data_type": "character varying",
+        "is_nullable": true,
+        "description": "City where property is located"
+      },
+      {
+        "column_name": "location_district",
+        "data_type": "character varying",
+        "is_nullable": true,
+        "description": "District/neighborhood within city"
+      },
+      {
+        "column_name": "location_street",
+        "data_type": "character varying",
+        "is_nullable": true,
+        "description": "Street address"
+      },
+      {
+        "column_name": "latitude",
+        "data_type": "numeric",
+        "is_nullable": true,
+        "description": "GPS latitude coordinate"
+      },
+      {
+        "column_name": "longitude",
+        "data_type": "numeric",
+        "is_nullable": true,
+        "description": "GPS longitude coordinate"
+      },
+      {
+        "column_name": "google_maps_link",
+        "data_type": "text",
+        "is_nullable": true,
+        "description": "Link to Google Maps location"
+      },
+      {
+        "column_name": "features",
+        "data_type": "jsonb",
+        "is_nullable": true,
+        "description": "JSON object containing property features/amenities"
+      },
+      {
+        "column_name": "images",
+        "data_type": "array",
+        "is_nullable": true,
+        "description": "Array of image URLs"
+      },
+      {
+        "column_name": "featured_image",
+        "data_type": "character varying",
+        "is_nullable": true,
+        "description": "URL of the main/featured image"
+      },
+      {
+        "column_name": "image_count",
+        "data_type": "integer",
+        "is_nullable": true,
+        "description": "Total number of images"
+      },
+      {
+        "column_name": "status",
+        "data_type": "character varying",
+        "is_nullable": true,
+        "description": "Property status (available, sold, rented, off-market)"
+      },
+      {
+        "column_name": "contact_person",
+        "data_type": "character varying",
+        "is_nullable": true,
+        "description": "Name of contact person for inquiries"
+      },
+      {
+        "column_name": "contact_phone",
+        "data_type": "character varying",
+        "is_nullable": true,
+        "description": "Contact phone number"
+      },
+      {
+        "column_name": "slug",
+        "data_type": "text",
+        "is_nullable": true,
+        "description": "URL-friendly slug for the property"
+      },
+      {
+        "column_name": "view_count",
+        "data_type": "integer",
+        "is_nullable": true,
+        "description": "Number of times property has been viewed"
+      },
+      {
+        "column_name": "is_featured",
+        "data_type": "boolean",
+        "is_nullable": true,
+        "description": "Whether property is featured/highlighted"
+      },
+      {
+        "column_name": "vector_synced",
+        "data_type": "boolean",
+        "is_nullable": true,
+        "description": "Whether property is synced with vector search"
+      },
+      {
+        "column_name": "search_keywords",
+        "data_type": "array",
+        "is_nullable": true,
+        "description": "Array of search keywords for this property"
+      },
+      {
+        "column_name": "nearby_landmarks",
+        "data_type": "array",
+        "is_nullable": true,
+        "description": "Array of nearby landmarks/points of interest"
+      },
+      {
+        "column_name": "embedding",
+        "data_type": "vector",
+        "is_nullable": true,
+        "description": "Vector embedding for semantic search"
+      },
+      {
+        "column_name": "created_at",
+        "data_type": "timestamp without time zone",
+        "is_nullable": true,
+        "description": "Timestamp when property was created"
+      },
+      {
+        "column_name": "updated_at",
+        "data_type": "timestamp without time zone",
+        "is_nullable": true,
+        "description": "Timestamp when property was last updated"
+      }
+    ],
+    "primary_keys": ["id"],
+    "unique_constraints": [],
+    "foreign_keys": [
+      {
+        "column_name": "office_id",
+        "foreign_table": "offices",
+        "foreign_column": "id"
+      }
+    ],
+    "indexes": ["office_id", "status", "location_city", "property_type"]
+  },
+  "customers": {
+    "table_name": "customers",
+    "description": "Stores customer/client information for property management",
+    "columns": [
+      {
+        "column_name": "id",
+        "data_type": "uuid",
+        "is_nullable": false,
+        "constraints": ["PRIMARY KEY"]
+      },
+      {
+        "column_name": "office_id",
+        "data_type": "uuid",
+        "is_nullable": false,
+        "constraints": ["FK → offices(id)"]
+      },
+      {
+        "column_name": "name",
+        "data_type": "text",
+        "is_nullable": false
+      },
+      {
+        "column_name": "phone",
+        "data_type": "character varying",
+        "is_nullable": false
+      },
+      {
+        "column_name": "email",
+        "data_type": "character varying",
+        "is_nullable": true
+      },
+      {
+        "column_name": "national_id",
+        "data_type": "character varying",
+        "is_nullable": true
+      },
+      {
+        "column_name": "type",
+        "data_type": "character varying",
+        "is_nullable": false,
+        "description": "Customer type: buyer, seller, renter, landlord, both"
+      },
+      {
+        "column_name": "status",
+        "data_type": "character varying",
+        "is_nullable": false,
+        "description": "Customer status: active, inactive, blocked"
+      },
+      {
+        "column_name": "address",
+        "data_type": "text",
+        "is_nullable": true
+      },
+      {
+        "column_name": "city",
+        "data_type": "text",
+        "is_nullable": true
+      },
+      {
+        "column_name": "preferred_contact_method",
+        "data_type": "character varying",
+        "is_nullable": true
+      },
+      {
+        "column_name": "notes",
+        "data_type": "text",
+        "is_nullable": true
+      },
+      {
+        "column_name": "tags",
+        "data_type": "jsonb",
+        "is_nullable": true
+      },
+      {
+        "column_name": "source",
+        "data_type": "character varying",
+        "is_nullable": true
+      },
+      {
+        "column_name": "rating",
+        "data_type": "integer",
+        "is_nullable": true
+      },
+      {
+        "column_name": "total_spent",
+        "data_type": "decimal",
+        "is_nullable": true
+      },
+      {
+        "column_name": "total_earned",
+        "data_type": "decimal",
+        "is_nullable": true
+      },
+      {
+        "column_name": "outstanding_balance",
+        "data_type": "decimal",
+        "is_nullable": true
+      },
+      {
+        "column_name": "assigned_staff_id",
+        "data_type": "uuid",
+        "is_nullable": true
+      },
+      {
+        "column_name": "last_contact_date",
+        "data_type": "timestamp",
+        "is_nullable": true
+      },
+      {
+        "column_name": "created_at",
+        "data_type": "timestamp",
+        "is_nullable": true
+      },
+      {
+        "column_name": "updated_at",
+        "data_type": "timestamp",
+        "is_nullable": true
+      }
+    ],
+    "primary_keys": ["id"],
+    "unique_constraints": [["phone", "office_id"]],
+    "foreign_keys": [
+      {
+        "column_name": "office_id",
+        "foreign_table": "offices",
+        "foreign_column": "id",
+        "on_delete": "CASCADE"
+      }
+    ]
+  },
+  "appointments": {
+    "table_name": "appointments",
+    "description": "Stores scheduled appointments for property viewings and meetings",
+    "columns": [
+      {
+        "column_name": "id",
+        "data_type": "uuid",
+        "is_nullable": false,
+        "constraints": ["PRIMARY KEY"]
+      },
+      {
+        "column_name": "office_id",
+        "data_type": "uuid",
+        "is_nullable": false,
+        "constraints": ["FK → offices(id)"]
+      },
+      {
+        "column_name": "customer_id",
+        "data_type": "uuid",
+        "is_nullable": false,
+        "constraints": ["FK → customers(id)"]
+      },
+      {
+        "column_name": "property_id",
+        "data_type": "uuid",
+        "is_nullable": true,
+        "constraints": ["FK → properties(id)"]
+      },
+      {
+        "column_name": "staff_id",
+        "data_type": "uuid",
+        "is_nullable": true
+      },
+      {
+        "column_name": "appointment_date",
+        "data_type": "timestamp",
+        "is_nullable": false
+      },
+      {
+        "column_name": "type",
+        "data_type": "character varying",
+        "is_nullable": false
+      },
+      {
+        "column_name": "status",
+        "data_type": "character varying",
+        "is_nullable": false
+      },
+      {
+        "column_name": "notes",
+        "data_type": "text",
+        "is_nullable": true
+      },
+      {
+        "column_name": "created_at",
+        "data_type": "timestamp",
+        "is_nullable": true
+      },
+      {
+        "column_name": "updated_at",
+        "data_type": "timestamp",
+        "is_nullable": true
+      }
+    ],
+    "primary_keys": ["id"],
+    "foreign_keys": [
+      {
+        "column_name": "office_id",
+        "foreign_table": "offices",
+        "foreign_column": "id"
+      },
+      {
+        "column_name": "customer_id",
+        "foreign_table": "customers",
+        "foreign_column": "id"
+      },
+      {
+        "column_name": "property_id",
+        "foreign_table": "properties",
+        "foreign_column": "id"
+      }
+    ]
+  },
+  "refresh_tokens": {
+    "table_name": "refresh_tokens",
+    "description": "Stores JWT refresh tokens for authentication",
+    "columns": [
+      {
+        "column_name": "id",
+        "data_type": "uuid",
+        "is_nullable": false,
+        "constraints": ["PRIMARY KEY"]
+      },
+      {
+        "column_name": "user_id",
+        "data_type": "uuid",
+        "is_nullable": false
+      },
+      {
+        "column_name": "token",
+        "data_type": "text",
+        "is_nullable": false,
+        "constraints": ["UNIQUE"]
+      },
+      {
+        "column_name": "expires_at",
+        "data_type": "timestamp",
+        "is_nullable": false
+      },
+      {
+        "column_name": "created_at",
+        "data_type": "timestamp",
+        "is_nullable": false
+      }
+    ],
+    "primary_keys": ["id"],
+    "unique_constraints": [["token"]],
+    "foreign_keys": [],
+    "indexes": ["user_id", "token", "expires_at"]
+  }
+}

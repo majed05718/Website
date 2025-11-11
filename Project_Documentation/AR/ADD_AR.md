@@ -1264,3 +1264,425 @@
   - `Get` `/whatsapp/templates` → `async templates(@Req() req: any) {`
 
 ---
+
+---
+
+## الملحق أ: مخطط قاعدة البيانات التفصيلي
+
+> **تاريخ الإنشاء**: 2025-11-11  
+> **الطريقة**: هندسة عكسية من قاعدة بيانات Supabase PostgreSQL الإنتاجية  
+> **مصدر الحقيقة**: يمثل هذا القسم المخطط **الدقيق 100%** لقاعدة البيانات
+
+### نظرة عامة على المخطط
+
+تطبق قاعدة البيانات معمارية متعددة المستأجرين حيث يتم عزل جميع البيانات بواسطة `office_id`. يستخدم النظام PostgreSQL مع Supabase كمزود قاعدة البيانات، مستفيداً من ميزات PostgreSQL الأصلية بما في ذلك:
+
+- **مفاتيح أساسية UUID**: جميع الجداول تستخدم UUID لقابلية التوسع والأمان
+- **أعمدة JSONB**: مخطط مرن للميزات والصلاحيات والبيانات الوصفية
+- **أعمدة المصفوفات**: مصفوفات PostgreSQL الأصلية للوسوم والصور والكلمات المفتاحية
+- **تضمينات المتجهات**: إضافة pgvector للبحث الدلالي
+- **الطوابع الزمنية**: جميع الجداول تتضمن `created_at` و `updated_at` لمسارات التدقيق
+
+### جداول قاعدة البيانات
+
+#### 1. `offices` (المكاتب)
+
+**الوصف**: الجدول المركزي لتخزين مكاتب/شركات إدارة العقارات. كل مكتب يمثل مستأجراً معزولاً في المعمارية متعددة المستأجرين.
+
+| اسم العمود | نوع البيانات | قابل للـ NULL | القيود | الوصف |
+|:---|:---|:---:|:---|:---|
+| `id` | `uuid` | لا | PRIMARY KEY | المعرف الفريد |
+| `office_code` | `character varying` | لا | UNIQUE | رمز المكتب الفريد |
+| `office_name` | `character varying` | لا | | اسم المكتب/الشركة |
+| `whatsapp_number` | `character varying` | لا | | رقم واتساب الأساسي (إلزامي) |
+| `whatsapp_phone_number` | `character varying` | نعم | | رقم واتساب بديل |
+| `subscription_plan` | `character varying` | نعم | | الخطة الحالية: free, basic, premium, enterprise |
+| `subscription_status` | `character varying` | نعم | | الحالة: active, inactive, expired, trial |
+| `monthly_messages_used` | `integer` | نعم | | رسائل واتساب المرسلة هذا الشهر |
+| `monthly_messages_limit` | `integer` | نعم | | حد الرسائل حسب الخطة |
+| `location_city` | `character varying` | نعم | | المدينة التي يقع فيها المكتب |
+| `manager_name` | `character varying` | نعم | | اسم مدير/مالك المكتب |
+| `contact_email` | `character varying` | نعم | | البريد الإلكتروني الرئيسي |
+| `whatsapp_api_token` | `character varying` | نعم | | رمز API واتساب المشفر |
+| `whatsapp_api_url` | `character varying` | نعم | | عنوان API واتساب الأساسي |
+| `logo_url` | `text` | نعم | | رابط شعار المكتب |
+| `website_url` | `text` | نعم | | رابط موقع المكتب |
+| `office_address` | `text` | نعم | | عنوان المكتب الفعلي |
+| `created_at` | `timestamp without time zone` | نعم | | طابع زمني للإنشاء |
+| `updated_at` | `timestamp without time zone` | نعم | | طابع زمني لآخر تحديث |
+
+**الفهارس**:
+- أساسي: `id`
+- فريد: `office_code`
+- قياسي: `subscription_plan`, `subscription_status`
+
+**قواعد العمل**:
+- `whatsapp_number` مطلوب لتكامل واتساب
+- `office_code` يجب أن يكون فريداً عبر جميع المكاتب
+- `subscription_plan` يحدد الوصول للميزات وحدود الرسائل
+
+---
+
+#### 2. `user_permissions` (صلاحيات المستخدمين)
+
+**الوصف**: يخزن حسابات المستخدمين، بيانات المصادقة، الأدوار، والصلاحيات التفصيلية. ينفذ RBAC (التحكم بالوصول حسب الدور) مع تعدد المستأجرين.
+
+| اسم العمود | نوع البيانات | قابل للـ NULL | القيود | الوصف |
+|:---|:---|:---:|:---|:---|
+| `id` | `uuid` | لا | PRIMARY KEY | معرف المستخدم الفريد |
+| `office_id` | `uuid` | لا | FK → offices(id) ON DELETE CASCADE | عزل المستأجر |
+| `user_id` | `uuid` | نعم | | مرجع اختياري لمعرف مستخدم خارجي |
+| `name` | `character varying` | لا | | الاسم الكامل للمستخدم |
+| `phone_number` | `character varying` | لا | UNIQUE | رقم الهاتف (فريد على مستوى النظام) |
+| `email` | `character varying` | لا | UNIQUE | البريد الإلكتروني (فريد على مستوى النظام) |
+| `role` | `character varying` | لا | | الدور: system_admin, office_admin, staff, viewer |
+| `password_hash` | `text` | نعم | | كلمة المرور المشفرة بـ bcrypt (10 دورات تمليح) |
+| `is_active` | `boolean` | لا | DEFAULT true | حالة تفعيل الحساب |
+| `status` | `character varying` | نعم | | الحالة: active, pending, suspended, deleted |
+| `permissions` | `jsonb` | نعم | | كائن الصلاحيات التفصيلية |
+| `last_login` | `timestamp without time zone` | نعم | | طابع زمني لآخر تسجيل دخول ناجح |
+| `created_at` | `timestamp without time zone` | لا | DEFAULT NOW() | طابع زمني لإنشاء الحساب |
+| `updated_at` | `timestamp without time zone` | لا | DEFAULT NOW() | طابع زمني لآخر تحديث للملف الشخصي |
+
+**الفهارس**:
+- أساسي: `id`
+- فريد: `email`, `phone_number`
+- مفتاح أجنبي: `office_id` → `offices(id)`
+- قياسي: `role`, `is_active`, `office_id`
+
+**مخطط الصلاحيات** (`permissions` JSONB):
+```json
+{
+  "all": true,                    // علامة مدير النظام
+  "system_admin": true,           // مدير على مستوى النظام
+  "properties": {
+    "view": true,
+    "create": true,
+    "edit": true,
+    "delete": false
+  },
+  "customers": { "...": true },
+  "reports": { "...": true }
+}
+```
+
+**قواعد العمل**:
+- `phone_number` و `email` يجب أن يكونا فريدين عالمياً
+- `password_hash` يستخدم bcrypt بـ 10 دورات تمليح
+- دور `system_admin` له وصول لجميع المكاتب
+- الأدوار الأخرى محددة النطاق بـ `office_id`
+- حذف مكتب ينتقل تتالياً لجميع المستخدمين المرتبطين
+
+---
+
+#### 3. `properties` (العقارات)
+
+**الوصف**: يخزن قوائم العقارات مع تفاصيل شاملة، بيانات الموقع، الوسائط، وتحسين البحث.
+
+| اسم العمود | نوع البيانات | قابل للـ NULL | القيود | الوصف |
+|:---|:---|:---:|:---|:---|
+| `id` | `uuid` | لا | PRIMARY KEY | معرف العقار الفريد |
+| `office_id` | `uuid` | نعم | FK → offices(id) | المكتب المدير |
+| `property_code` | `character varying` | نعم | | رمز العقار الداخلي |
+| `property_type` | `character varying` | لا | | نوع: شقة، فيلا، تجاري، أرض، إلخ |
+| `listing_type` | `character varying` | نعم | | نوع الإعلان: بيع، إيجار، تأجير، كلاهما |
+| `title` | `character varying` | نعم | | عنوان العقار |
+| `description` | `text` | نعم | | وصف تفصيلي للعقار |
+| `price` | `numeric` | لا | | سعر البيع أو الإيجار الشهري |
+| `currency` | `character varying` | نعم | DEFAULT 'SAR' | رمز العملة |
+| `area_sqm` | `numeric` | نعم | | مساحة العقار بالمتر المربع |
+| `bedrooms` | `integer` | نعم | | عدد غرف النوم |
+| `bathrooms` | `integer` | نعم | | عدد دورات المياه |
+| `location_city` | `character varying` | نعم | | المدينة |
+| `location_district` | `character varying` | نعم | | الحي/المنطقة |
+| `location_street` | `character varying` | نعم | | عنوان الشارع |
+| `latitude` | `numeric(10,8)` | نعم | | خط العرض GPS |
+| `longitude` | `numeric(11,8)` | نعم | | خط الطول GPS |
+| `google_maps_link` | `text` | نعم | | رابط خرائط جوجل |
+| `features` | `jsonb` | نعم | | كائن ميزات/مرافق العقار |
+| `images` | `text[]` | نعم | | مصفوفة روابط الصور |
+| `featured_image` | `character varying` | نعم | | رابط الصورة الرئيسية |
+| `image_count` | `integer` | نعم | | العدد الكلي للصور |
+| `status` | `character varying` | نعم | | الحالة: متاح، مباع، مؤجر، خارج السوق، معلق |
+| `contact_person` | `character varying` | نعم | | اسم جهة الاتصال للاستفسارات |
+| `contact_phone` | `character varying` | نعم | | رقم هاتف الاتصال |
+| `slug` | `text` | نعم | UNIQUE | معرف صديق لمحركات البحث |
+| `view_count` | `integer` | نعم | DEFAULT 0 | عدد مشاهدات العقار |
+| `is_featured` | `boolean` | نعم | DEFAULT false | علامة الإعلان المميز |
+| `vector_synced` | `boolean` | نعم | DEFAULT false | حالة مزامنة البحث الدلالي |
+| `search_keywords` | `text[]` | نعم | | مصفوفة الكلمات المفتاحية للبحث |
+| `nearby_landmarks` | `text[]` | نعم | | المواقع البارزة القريبة |
+| `embedding` | `vector(1536)` | نعم | | تضمين المتجهات للبحث الدلالي |
+| `created_at` | `timestamp without time zone` | نعم | DEFAULT NOW() | طابع زمني لإنشاء الإعلان |
+| `updated_at` | `timestamp without time zone` | نعم | DEFAULT NOW() | طابع زمني لآخر تحديث |
+
+**الفهارس**:
+- أساسي: `id`
+- فريد: `slug`
+- مفتاح أجنبي: `office_id` → `offices(id)`
+- قياسي: `property_type`, `status`, `location_city`, `listing_type`
+- مكاني: فهرس GiST على `(latitude, longitude)` لاستعلامات الموقع
+- متجهات: `embedding` للبحث الدلالي
+
+**مخطط الميزات** (`features` JSONB):
+```json
+{
+  "parking": true,
+  "elevator": true,
+  "furnished": "semi",
+  "air_conditioning": true,
+  "garden": false,
+  "swimming_pool": false,
+  "security": true,
+  "balcony": 2,
+  "kitchen": "modern",
+  "view": "city"
+}
+```
+
+**قواعد العمل**:
+- `property_type` و `price` مطلوبان
+- `slug` يجب أن يكون فريداً لعناوين URL صديقة لمحركات البحث
+- `embedding` يتم إنشاؤه تلقائياً عند تغيير `description`
+- روابط الصور مخزنة في Supabase Storage
+- حذف `office_id` لا ينتشر تتالياً (يحفظ البيانات التاريخية)
+
+---
+
+#### 4. `customers` (العملاء)
+
+**الوصف**: إدارة العملاء/الزبائن مع معلومات الاتصال، التقسيم، وتتبع العلاقات.
+
+| اسم العمود | نوع البيانات | قابل للـ NULL | القيود | الوصف |
+|:---|:---|:---:|:---|:---|
+| `id` | `uuid` | لا | PRIMARY KEY | معرف العميل الفريد |
+| `office_id` | `uuid` | لا | FK → offices(id) ON DELETE CASCADE | المكتب المالك |
+| `name` | `text` | لا | | الاسم الكامل للعميل |
+| `phone` | `character varying` | لا | | رقم الهاتف الأساسي |
+| `email` | `character varying` | نعم | | عنوان البريد الإلكتروني |
+| `national_id` | `character varying` | نعم | | رقم الهوية الوطنية/جواز السفر |
+| `type` | `character varying` | لا | | نوع العميل: مشتري، بائع، مستأجر، مالك، كلاهما |
+| `status` | `character varying` | لا | DEFAULT 'active' | الحالة: نشط، غير نشط، محظور |
+| `address` | `text` | نعم | | العنوان الكامل |
+| `city` | `text` | نعم | | المدينة |
+| `preferred_contact_method` | `character varying` | نعم | | طريقة الاتصال المفضلة: هاتف، بريد، واتساب، SMS |
+| `notes` | `text` | نعم | | ملاحظات داخلية |
+| `tags` | `jsonb` | نعم | | مصفوفة الوسوم المخصصة |
+| `source` | `character varying` | نعم | | مصدر العميل (موقع ويب، إحالة، إلخ) |
+| `rating` | `integer` | نعم | CHECK (1-5) | تقييم العميل (1-5 نجوم) |
+| `total_spent` | `decimal(15,2)` | نعم | DEFAULT 0 | إجمالي مبلغ الشراء |
+| `total_earned` | `decimal(15,2)` | نعم | DEFAULT 0 | إجمالي المكتسب من العميل |
+| `outstanding_balance` | `decimal(15,2)` | نعم | DEFAULT 0 | الرصيد غير المدفوع |
+| `assigned_staff_id` | `uuid` | نعم | FK → user_permissions(id) | عضو الفريق المعين |
+| `last_contact_date` | `timestamp` | نعم | | طابع زمني لآخر تفاعل |
+| `created_at` | `timestamp` | نعم | DEFAULT NOW() | إنشاء سجل العميل |
+| `updated_at` | `timestamp` | نعم | DEFAULT NOW() | آخر تحديث |
+
+**الفهارس**:
+- أساسي: `id`
+- فريد: `(phone, office_id)` - رقم الهاتف فريد لكل مكتب
+- مفاتيح أجنبية: `office_id`, `assigned_staff_id`
+- قياسي: `type`, `status`, `city`, `office_id`
+
+**قواعد العمل**:
+- `phone` + `office_id` يجب أن يكونا فريدين (نفس الهاتف يمكن أن يكون في مكاتب مختلفة)
+- `type` يحدد دورة حياة العميل والإجراءات المتاحة
+- `rating` مقيد بين 1-5
+- الأعمدة المالية تتبع تاريخ المعاملات
+
+---
+
+#### 5. `appointments` (المواعيد)
+
+**الوصف**: المواعيد المجدولة لمعاينة العقارات، الاجتماعات، والاستشارات.
+
+| اسم العمود | نوع البيانات | قابل للـ NULL | القيود | الوصف |
+|:---|:---|:---:|:---|:---|
+| `id` | `uuid` | لا | PRIMARY KEY | معرف الموعد الفريد |
+| `office_id` | `uuid` | لا | FK → offices(id) ON DELETE CASCADE | المكتب المالك |
+| `customer_id` | `uuid` | لا | FK → customers(id) ON DELETE CASCADE | العميل الحاضر |
+| `property_id` | `uuid` | نعم | FK → properties(id) ON DELETE SET NULL | العقار المرتبط (اختياري) |
+| `staff_id` | `uuid` | نعم | FK → user_permissions(id) | عضو الفريق المعين |
+| `appointment_date` | `timestamp` | لا | | التاريخ/الوقت المجدول |
+| `type` | `character varying` | لا | | النوع: معاينة، استشارة، توقيع، تفتيش |
+| `status` | `character varying` | لا | DEFAULT 'scheduled' | الحالة: مجدول، مؤكد، مكتمل، ملغي، لم يحضر |
+| `notes` | `text` | نعم | | ملاحظات الموعد |
+| `reminder_sent` | `boolean` | نعم | DEFAULT false | ما إذا تم إرسال التذكير |
+| `created_at` | `timestamp` | نعم | DEFAULT NOW() | إنشاء الموعد |
+| `updated_at` | `timestamp` | نعم | DEFAULT NOW() | آخر تحديث |
+
+**الفهارس**:
+- أساسي: `id`
+- مفاتيح أجنبية: `office_id`, `customer_id`, `property_id`, `staff_id`
+- قياسي: `appointment_date`, `status`, `office_id`
+- مركب: `(office_id, appointment_date)` لاستعلامات التقويم
+
+**قواعد العمل**:
+- `appointment_date` يجب أن يكون في المستقبل عند الإنشاء
+- حذف `customer` ينتقل تتالياً للمواعيد
+- حذف `property` يضع `property_id` كـ NULL (يحفظ سجل الموعد)
+- التذكيرات ترسل قبل 24 ساعة من `appointment_date`
+
+---
+
+#### 6. `refresh_tokens` (رموز التحديث)
+
+**الوصف**: تخزين رموز تحديث JWT للمصادقة الآمنة مع دوران الرموز.
+
+| اسم العمود | نوع البيانات | قابل للـ NULL | القيود | الوصف |
+|:---|:---|:---:|:---|:---|
+| `id` | `uuid` | لا | PRIMARY KEY | معرف سجل الرمز الفريد |
+| `user_id` | `uuid` | لا | FK → user_permissions(id) | مالك الرمز |
+| `token` | `text` | لا | UNIQUE | رمز التحديث المشفر |
+| `expires_at` | `timestamp` | لا | | طابع زمني لانتهاء الرمز |
+| `created_at` | `timestamp` | لا | DEFAULT NOW() | طابع زمني لإصدار الرمز |
+
+**الفهارس**:
+- أساسي: `id`
+- فريد: `token`
+- مفتاح أجنبي: `user_id`
+- قياسي: `user_id`, `expires_at`
+
+**قواعد العمل**:
+- `token` يُخزن كـ SHA-256 hash للأمان
+- `expires_at` يُعين إلى 7 أيام من الإصدار
+- الرموز المنتهية تُنظف تلقائياً بواسطة مهمة cron
+- دوران الرموز: الرمز القديم يُلغى عند إصدار جديد
+- تسجيل الخروج يُلغي جميع رموز تحديث المستخدم
+
+---
+
+### علاقات الجداول
+
+#### مخطط علاقات الكيانات
+
+```mermaid
+erDiagram
+    offices ||--o{ user_permissions : "يدير"
+    offices ||--o{ properties : "يملك"
+    offices ||--o{ customers : "يدير"
+    offices ||--o{ appointments : "يجدول"
+    
+    user_permissions ||--o{ customers : "معين_لـ"
+    user_permissions ||--o{ appointments : "يعالج"
+    user_permissions ||--o{ refresh_tokens : "يصادق"
+    
+    customers ||--o{ appointments : "يحجز"
+    
+    properties ||--o{ appointments : "موضوع"
+    
+    offices {
+        uuid id PK
+        string office_code UK
+        string office_name
+        string whatsapp_number
+    }
+    
+    user_permissions {
+        uuid id PK
+        uuid office_id FK
+        string email UK
+        string phone_number UK
+        string role
+        jsonb permissions
+    }
+    
+    properties {
+        uuid id PK
+        uuid office_id FK
+        string property_type
+        decimal price
+        string status
+    }
+    
+    customers {
+        uuid id PK
+        uuid office_id FK
+        string phone
+        string type
+        uuid assigned_staff_id FK
+    }
+    
+    appointments {
+        uuid id PK
+        uuid office_id FK
+        uuid customer_id FK
+        uuid property_id FK
+        uuid staff_id FK
+        timestamp appointment_date
+    }
+    
+    refresh_tokens {
+        uuid id PK
+        uuid user_id FK
+        string token UK
+        timestamp expires_at
+    }
+```
+
+---
+
+### أنماط الوصول للبيانات
+
+#### استعلامات تعدد المستأجرين
+
+يجب أن تتضمن جميع الاستعلامات فلتر `office_id` باستثناء دور `system_admin`:
+
+```sql
+-- ✅ صحيح: استعلام محدد النطاق للمستأجر
+SELECT * FROM properties 
+WHERE office_id = $1 
+  AND status = 'available';
+
+-- ❌ خطأ: فلتر المستأجر مفقود (تسريب بيانات!)
+SELECT * FROM properties 
+WHERE status = 'available';
+
+-- ✅ صحيح: مدير النظام يمكنه الاستعلام عبر المكاتب
+SELECT * FROM properties 
+WHERE status = 'available';  -- فقط إذا role = 'system_admin'
+```
+
+---
+
+### أمان قاعدة البيانات
+
+#### أمان مستوى الصف (RLS)
+
+سياسات RLS في Supabase تفرض عزل المستأجرين:
+
+```sql
+-- مثال على سياسة RLS للعقارات
+CREATE POLICY "المستخدمون يمكنهم الوصول فقط لعقارات مكتبهم"
+ON properties
+FOR ALL
+USING (
+  office_id IN (
+    SELECT office_id FROM user_permissions 
+    WHERE id = auth.uid()
+  )
+);
+```
+
+#### حماية البيانات الحساسة
+
+**مشفرة في حالة السكون**:
+- `password_hash` (bcrypt)
+- `whatsapp_api_token` (AES-256)
+
+**مقنعة في السجلات**:
+- أرقام الهواتف
+- عناوين البريد الإلكتروني
+- رموز API
+
+**الامتثال للائحة GDPR**:
+- البيانات الشخصية مخزنة في `customers` و `user_permissions`
+- API تصدير البيانات متاحة
+- الحق في المحو منفذ عبر حذف تتالي
+
+---
+
+**آخر تحديث**: 2025-11-11  
+**إصدار المخطط**: 1.2.0  
+**المسؤول عنه**: فريق معمارية قاعدة البيانات
+

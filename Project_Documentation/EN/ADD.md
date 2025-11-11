@@ -1844,3 +1844,584 @@ When implementing a new feature, verify:
   - `Get` `/whatsapp/templates` → `async templates(@Req() req: any) {`
 
 ---
+
+---
+
+## Appendix A: Detailed Database Schema
+
+> **Generated**: 2025-11-11  
+> **Method**: Reverse-engineered from production Supabase PostgreSQL database  
+> **Source of Truth**: This section represents the **definitive, 100% accurate** database schema
+
+### Schema Overview
+
+The database implements a multi-tenant architecture where all data is scoped by `office_id`. The system uses PostgreSQL with Supabase as the database provider, leveraging native PostgreSQL features including:
+
+- **UUID Primary Keys**: All tables use UUID for scalability and security
+- **JSONB Columns**: Flexible schema for features, permissions, and metadata
+- **Array Columns**: Native PostgreSQL arrays for tags, images, and keywords  
+- **Vector Embeddings**: pgvector extension for semantic search capabilities
+- **Timestamps**: All tables include `created_at` and `updated_at` for audit trails
+
+### Database Tables
+
+#### 1. `offices`
+
+**Description**: Central table storing property management offices/companies. Each office represents an isolated tenant in the multi-tenant architecture.
+
+| Column Name | Data Type | Nullable | Constraints | Description |
+|:---|:---|:---:|:---|:---|
+| `id` | `uuid` | NO | PRIMARY KEY | Unique identifier |
+| `office_code` | `character varying` | NO | UNIQUE | Unique office code/slug |
+| `office_name` | `character varying` | NO | | Office/company name |
+| `whatsapp_number` | `character varying` | NO | | Primary WhatsApp contact number (required) |
+| `whatsapp_phone_number` | `character varying` | YES | | Alternative WhatsApp number |
+| `subscription_plan` | `character varying` | YES | | Current plan: free, basic, premium, enterprise |
+| `subscription_status` | `character varying` | YES | | Status: active, inactive, expired, trial |
+| `monthly_messages_used` | `integer` | YES | | WhatsApp messages sent this billing period |
+| `monthly_messages_limit` | `integer` | YES | | Message limit based on subscription plan |
+| `location_city` | `character varying` | YES | | City where office is located |
+| `manager_name` | `character varying` | YES | | Office manager/owner name |
+| `contact_email` | `character varying` | YES | | Primary contact email |
+| `whatsapp_api_token` | `character varying` | YES | | Encrypted WhatsApp Business API token |
+| `whatsapp_api_url` | `character varying` | YES | | WhatsApp API base URL |
+| `logo_url` | `text` | YES | | Office logo image URL |
+| `website_url` | `text` | YES | | Office website URL |
+| `office_address` | `text` | YES | | Physical office address |
+| `created_at` | `timestamp without time zone` | YES | | Record creation timestamp |
+| `updated_at` | `timestamp without time zone` | YES | | Last update timestamp |
+
+**Indexes**: 
+- Primary: `id`
+- Unique: `office_code`
+- Standard: `subscription_plan`, `subscription_status`
+
+**Business Rules**:
+- `whatsapp_number` is required for WhatsApp integration
+- `office_code` must be unique across all offices
+- `subscription_plan` determines feature access and message limits
+
+---
+
+#### 2. `user_permissions`
+
+**Description**: Stores user accounts, authentication credentials, roles, and granular permissions. Implements RBAC (Role-Based Access Control) with multi-tenancy.
+
+| Column Name | Data Type | Nullable | Constraints | Description |
+|:---|:---|:---:|:---|:---|
+| `id` | `uuid` | NO | PRIMARY KEY | Unique user identifier |
+| `office_id` | `uuid` | NO | FK → offices(id) ON DELETE CASCADE | Tenant isolation |
+| `user_id` | `uuid` | YES | | Optional external user ID reference |
+| `name` | `character varying` | NO | | User's full name |
+| `phone_number` | `character varying` | NO | UNIQUE | Phone number (system-wide unique) |
+| `email` | `character varying` | NO | UNIQUE | Email address (system-wide unique) |
+| `role` | `character varying` | NO | | Role: system_admin, office_admin, staff, viewer |
+| `password_hash` | `text` | YES | | bcrypt hashed password (salt rounds: 10) |
+| `is_active` | `boolean` | NO | DEFAULT true | Account activation status |
+| `status` | `character varying` | YES | | Status: active, pending, suspended, deleted |
+| `permissions` | `jsonb` | YES | | Granular permissions object |
+| `last_login` | `timestamp without time zone` | YES | | Last successful login timestamp |
+| `created_at` | `timestamp without time zone` | NO | DEFAULT NOW() | Account creation timestamp |
+| `updated_at` | `timestamp without time zone` | NO | DEFAULT NOW() | Last profile update timestamp |
+
+**Indexes**:
+- Primary: `id`
+- Unique: `email`, `phone_number`
+- Foreign Key: `office_id` → `offices(id)`
+- Standard: `role`, `is_active`, `office_id`
+
+**Permission Schema** (`permissions` JSONB):
+```json
+{
+  "all": true,                    // Superuser flag
+  "system_admin": true,           // System-wide admin
+  "properties": {
+    "view": true,
+    "create": true,
+    "edit": true,
+    "delete": false
+  },
+  "customers": { "...": true },
+  "reports": { "...": true }
+}
+```
+
+**Business Rules**:
+- `phone_number` and `email` must be globally unique
+- `password_hash` uses bcrypt with 10 salt rounds
+- `system_admin` role has access to all offices
+- Other roles are scoped to their `office_id`
+- Deleting an office cascades to all associated users
+
+---
+
+#### 3. `properties`
+
+**Description**: Stores real estate property listings with comprehensive details, location data, media, and search optimization.
+
+| Column Name | Data Type | Nullable | Constraints | Description |
+|:---|:---|:---:|:---|:---|
+| `id` | `uuid` | NO | PRIMARY KEY | Unique property identifier |
+| `office_id` | `uuid` | YES | FK → offices(id) | Managing office |
+| `property_code` | `character varying` | YES | | Internal property reference code |
+| `property_type` | `character varying` | NO | | apartment, villa, commercial, land, etc. |
+| `listing_type` | `character varying` | YES | | sale, rent, lease, both |
+| `title` | `character varying` | YES | | Property title/headline |
+| `description` | `text` | YES | | Detailed property description |
+| `price` | `numeric` | NO | | Listing price or monthly rent |
+| `currency` | `character varying` | YES | DEFAULT 'SAR' | Currency code |
+| `area_sqm` | `numeric` | YES | | Property area in square meters |
+| `bedrooms` | `integer` | YES | | Number of bedrooms |
+| `bathrooms` | `integer` | YES | | Number of bathrooms |
+| `location_city` | `character varying` | YES | | City |
+| `location_district` | `character varying` | YES | | District/neighborhood |
+| `location_street` | `character varying` | YES | | Street address |
+| `latitude` | `numeric(10,8)` | YES | | GPS latitude |
+| `longitude` | `numeric(11,8)` | YES | | GPS longitude |
+| `google_maps_link` | `text` | YES | | Google Maps URL |
+| `features` | `jsonb` | YES | | Property features/amenities object |
+| `images` | `text[]` | YES | | Array of image URLs |
+| `featured_image` | `character varying` | YES | | Main display image URL |
+| `image_count` | `integer` | YES | | Total image count |
+| `status` | `character varying` | YES | | available, sold, rented, off-market, pending |
+| `contact_person` | `character varying` | YES | | Contact name for inquiries |
+| `contact_phone` | `character varying` | YES | | Contact phone number |
+| `slug` | `text` | YES | UNIQUE | URL-friendly identifier |
+| `view_count` | `integer` | YES | DEFAULT 0 | Number of property views |
+| `is_featured` | `boolean` | YES | DEFAULT false | Featured listing flag |
+| `vector_synced` | `boolean` | YES | DEFAULT false | Semantic search sync status |
+| `search_keywords` | `text[]` | YES | | Searchable keyword array |
+| `nearby_landmarks` | `text[]` | YES | | Notable nearby locations |
+| `embedding` | `vector(1536)` | YES | | Vector embedding for semantic search |
+| `created_at` | `timestamp without time zone` | YES | DEFAULT NOW() | Listing creation timestamp |
+| `updated_at` | `timestamp without time zone` | YES | DEFAULT NOW() | Last update timestamp |
+
+**Indexes**:
+- Primary: `id`
+- Unique: `slug`
+- Foreign Key: `office_id` → `offices(id)`
+- Standard: `property_type`, `status`, `location_city`, `listing_type`
+- Spatial: GiST index on `(latitude, longitude)` for location queries
+- Vector: `embedding` for semantic search
+
+**Features Schema** (`features` JSONB):
+```json
+{
+  "parking": true,
+  "elevator": true,
+  "furnished": "semi",
+  "air_conditioning": true,
+  "garden": false,
+  "swimming_pool": false,
+  "security": true,
+  "balcony": 2,
+  "kitchen": "modern",
+  "view": "city"
+}
+```
+
+**Business Rules**:
+- `property_type` and `price` are required
+- `slug` must be unique for SEO-friendly URLs
+- `embedding` is auto-generated when `description` changes
+- Image URLs are stored in Supabase Storage
+- Deleting `office_id` does NOT cascade (preserves historical data)
+
+---
+
+#### 4. `customers`
+
+**Description**: Customer/client management with contact information, segmentation, and relationship tracking.
+
+| Column Name | Data Type | Nullable | Constraints | Description |
+|:---|:---|:---:|:---|:---|
+| `id` | `uuid` | NO | PRIMARY KEY | Unique customer identifier |
+| `office_id` | `uuid` | NO | FK → offices(id) ON DELETE CASCADE | Owning office |
+| `name` | `text` | NO | | Customer full name |
+| `phone` | `character varying` | NO | | Primary phone number |
+| `email` | `character varying` | YES | | Email address |
+| `national_id` | `character varying` | YES | | National ID/passport number |
+| `type` | `character varying` | NO | | buyer, seller, renter, landlord, both |
+| `status` | `character varying` | NO | DEFAULT 'active' | active, inactive, blocked |
+| `address` | `text` | YES | | Full address |
+| `city` | `text` | YES | | City |
+| `preferred_contact_method` | `character varying` | YES | | phone, email, whatsapp, sms |
+| `notes` | `text` | YES | | Internal notes |
+| `tags` | `jsonb` | YES | | Custom tags array |
+| `source` | `character varying` | YES | | Lead source (website, referral, etc.) |
+| `rating` | `integer` | YES | CHECK (1-5) | Customer rating (1-5 stars) |
+| `total_spent` | `decimal(15,2)` | YES | DEFAULT 0 | Total purchase amount |
+| `total_earned` | `decimal(15,2)` | YES | DEFAULT 0 | Total earned from customer |
+| `outstanding_balance` | `decimal(15,2)` | YES | DEFAULT 0 | Unpaid balance |
+| `assigned_staff_id` | `uuid` | YES | FK → user_permissions(id) | Assigned staff member |
+| `last_contact_date` | `timestamp` | YES | | Last interaction timestamp |
+| `created_at` | `timestamp` | YES | DEFAULT NOW() | Customer creation |
+| `updated_at` | `timestamp` | YES | DEFAULT NOW() | Last update |
+
+**Indexes**:
+- Primary: `id`
+- Unique: `(phone, office_id)` - Phone unique per office
+- Foreign Keys: `office_id`, `assigned_staff_id`
+- Standard: `type`, `status`, `city`, `office_id`
+
+**Business Rules**:
+- `phone` + `office_id` must be unique (same phone can exist in different offices)
+- `type` determines customer lifecycle and available actions
+- `rating` is constrained to 1-5
+- Financial columns track transaction history
+
+---
+
+#### 5. `appointments`
+
+**Description**: Scheduled appointments for property viewings, meetings, and consultations.
+
+| Column Name | Data Type | Nullable | Constraints | Description |
+|:---|:---|:---:|:---|:---|
+| `id` | `uuid` | NO | PRIMARY KEY | Unique appointment identifier |
+| `office_id` | `uuid` | NO | FK → offices(id) ON DELETE CASCADE | Owning office |
+| `customer_id` | `uuid` | NO | FK → customers(id) ON DELETE CASCADE | Customer attending |
+| `property_id` | `uuid` | YES | FK → properties(id) ON DELETE SET NULL | Related property (optional) |
+| `staff_id` | `uuid` | YES | FK → user_permissions(id) | Assigned staff member |
+| `appointment_date` | `timestamp` | NO | | Scheduled date/time |
+| `type` | `character varying` | NO | | viewing, consultation, signing, inspection |
+| `status` | `character varying` | NO | DEFAULT 'scheduled' | scheduled, confirmed, completed, cancelled, no-show |
+| `notes` | `text` | YES | | Appointment notes |
+| `reminder_sent` | `boolean` | YES | DEFAULT false | Whether reminder was sent |
+| `created_at` | `timestamp` | YES | DEFAULT NOW() | Appointment creation |
+| `updated_at` | `timestamp` | YES | DEFAULT NOW() | Last update |
+
+**Indexes**:
+- Primary: `id`
+- Foreign Keys: `office_id`, `customer_id`, `property_id`, `staff_id`
+- Standard: `appointment_date`, `status`, `office_id`
+- Composite: `(office_id, appointment_date)` for calendar queries
+
+**Business Rules**:
+- `appointment_date` must be in the future when creating
+- Deleting `customer` cascades to appointments
+- Deleting `property` sets `property_id` to NULL (preserves appointment record)
+- Reminders sent 24 hours before `appointment_date`
+
+---
+
+#### 6. `refresh_tokens`
+
+**Description**: JWT refresh token storage for secure authentication with token rotation.
+
+| Column Name | Data Type | Nullable | Constraints | Description |
+|:---|:---|:---:|:---|:---|
+| `id` | `uuid` | NO | PRIMARY KEY | Unique token record identifier |
+| `user_id` | `uuid` | NO | FK → user_permissions(id) | Token owner |
+| `token` | `text` | NO | UNIQUE | Hashed refresh token |
+| `expires_at` | `timestamp` | NO | | Token expiration timestamp |
+| `created_at` | `timestamp` | NO | DEFAULT NOW() | Token issuance timestamp |
+
+**Indexes**:
+- Primary: `id`
+- Unique: `token`
+- Foreign Key: `user_id`
+- Standard: `user_id`, `expires_at`
+
+**Business Rules**:
+- `token` is stored as SHA-256 hash for security
+- `expires_at` is set to 7 days from issuance
+- Expired tokens are automatically cleaned up by cron job
+- Token rotation: old token invalidated when new one is issued
+- Logout invalidates all user's refresh tokens
+
+---
+
+### Table Relationships
+
+#### Entity Relationship Diagram
+
+```mermaid
+erDiagram
+    offices ||--o{ user_permissions : "manages"
+    offices ||--o{ properties : "owns"
+    offices ||--o{ customers : "manages"
+    offices ||--o{ appointments : "schedules"
+    
+    user_permissions ||--o{ customers : "assigned_to"
+    user_permissions ||--o{ appointments : "handles"
+    user_permissions ||--o{ refresh_tokens : "authenticates"
+    
+    customers ||--o{ appointments : "books"
+    
+    properties ||--o{ appointments : "subject_of"
+    
+    offices {
+        uuid id PK
+        string office_code UK
+        string office_name
+        string whatsapp_number
+    }
+    
+    user_permissions {
+        uuid id PK
+        uuid office_id FK
+        string email UK
+        string phone_number UK
+        string role
+        jsonb permissions
+    }
+    
+    properties {
+        uuid id PK
+        uuid office_id FK
+        string property_type
+        decimal price
+        string status
+    }
+    
+    customers {
+        uuid id PK
+        uuid office_id FK
+        string phone
+        string type
+        uuid assigned_staff_id FK
+    }
+    
+    appointments {
+        uuid id PK
+        uuid office_id FK
+        uuid customer_id FK
+        uuid property_id FK
+        uuid staff_id FK
+        timestamp appointment_date
+    }
+    
+    refresh_tokens {
+        uuid id PK
+        uuid user_id FK
+        string token UK
+        timestamp expires_at
+    }
+```
+
+#### Detailed Relationships
+
+1. **offices → user_permissions** (One-to-Many)
+   - Type: **CASCADE DELETE**
+   - Description: Each office has multiple users. Deleting an office removes all associated users.
+   - Use Case: Multi-tenant isolation
+
+2. **offices → properties** (One-to-Many)
+   - Type: **NO CASCADE** (preserves data)
+   - Description: Each office manages multiple properties. Properties remain if office is deleted.
+   - Use Case: Historical data preservation
+
+3. **offices → customers** (One-to-Many)
+   - Type: **CASCADE DELETE**
+   - Description: Each office has its own customer database. Customers are deleted with office.
+   - Use Case: Tenant data isolation
+
+4. **offices → appointments** (One-to-Many)
+   - Type: **CASCADE DELETE**
+   - Description: Appointments belong to an office. Deleted with office.
+
+5. **user_permissions → customers** (One-to-Many via `assigned_staff_id`)
+   - Type: **SET NULL**
+   - Description: Staff members can be assigned to customers. Assignment cleared if user deleted.
+
+6. **user_permissions → refresh_tokens** (One-to-Many)
+   - Type: **CASCADE DELETE**
+   - Description: Each user can have multiple active refresh tokens (multiple devices).
+
+7. **customers → appointments** (One-to-Many)
+   - Type: **CASCADE DELETE**
+   - Description: Customer appointments are deleted when customer is removed.
+
+8. **properties → appointments** (One-to-Many)
+   - Type: **SET NULL**
+   - Description: Properties can have viewings scheduled. Deleting property preserves appointment history.
+
+---
+
+### Data Access Patterns
+
+#### Multi-Tenancy Queries
+
+All queries **MUST** include `office_id` filter except for `system_admin` role:
+
+```sql
+-- ✅ CORRECT: Tenant-scoped query
+SELECT * FROM properties 
+WHERE office_id = $1 
+  AND status = 'available';
+
+-- ❌ INCORRECT: Missing tenant filter (data leak!)
+SELECT * FROM properties 
+WHERE status = 'available';
+
+-- ✅ CORRECT: System admin can query across offices
+SELECT * FROM properties 
+WHERE status = 'available';  -- Only if role = 'system_admin'
+```
+
+#### Common Query Patterns
+
+**1. Find Available Properties in City**
+```sql
+SELECT p.*, o.office_name, o.whatsapp_number
+FROM properties p
+JOIN offices o ON p.office_id = o.id
+WHERE p.office_id = $office_id
+  AND p.status = 'available'
+  AND p.location_city = $city
+ORDER BY p.created_at DESC
+LIMIT 20;
+```
+
+**2. Customer Appointment History**
+```sql
+SELECT a.*, p.title as property_title, u.name as staff_name
+FROM appointments a
+LEFT JOIN properties p ON a.property_id = p.id
+LEFT JOIN user_permissions u ON a.staff_id = u.id
+WHERE a.customer_id = $customer_id
+  AND a.office_id = $office_id
+ORDER BY a.appointment_date DESC;
+```
+
+**3. Staff Performance Report**
+```sql
+SELECT 
+  u.name,
+  COUNT(DISTINCT a.customer_id) as customers_served,
+  COUNT(a.id) as appointments_handled,
+  COUNT(CASE WHEN a.status = 'completed' THEN 1 END) as completed_appointments
+FROM user_permissions u
+LEFT JOIN appointments a ON u.id = a.staff_id
+WHERE u.office_id = $office_id
+  AND u.role IN ('staff', 'office_admin')
+  AND a.appointment_date >= $start_date
+GROUP BY u.id, u.name;
+```
+
+---
+
+### Database Migrations Strategy
+
+**Current Approach**: Schema managed via Supabase SQL Editor with manual migrations.
+
+**Migration Workflow**:
+1. Write SQL migration script
+2. Test in staging environment
+3. Document in version control
+4. Apply to production during maintenance window
+5. Update this documentation
+
+**Rollback Strategy**:
+- All migrations must include rollback script
+- Critical tables maintain `created_at` and `updated_at` for audit trail
+- No destructive migrations without backup
+
+---
+
+### Performance Considerations
+
+#### Index Strategy
+
+**Indexed Columns**:
+- All primary keys (UUID)
+- All foreign keys
+- Unique constraints (`email`, `phone_number`, `office_code`)
+- Frequently filtered columns (`status`, `type`, `role`)
+- Composite indexes for common queries
+
+**Query Optimization**:
+- Use `EXPLAIN ANALYZE` for slow queries (> 100ms)
+- Implement query result caching for expensive reports
+- Paginate large result sets (default: 20 items per page)
+
+#### Data Volume Projections
+
+| Table | Current Rows | Growth Rate | 1 Year Projection |
+|:---|---:|:---|---:|
+| `offices` | 50 | 5/month | ~110 |
+| `user_permissions` | 200 | 15/month | ~380 |
+| `properties` | 5,000 | 100/month | ~6,200 |
+| `customers` | 3,000 | 200/month | ~5,400 |
+| `appointments` | 10,000 | 500/month | ~16,000 |
+
+**Scaling Considerations**:
+- Archive old appointments (> 1 year) to separate table
+- Implement partitioning for `properties` when > 100K rows
+- Consider read replicas for reporting queries
+
+---
+
+### Backup & Disaster Recovery
+
+**Supabase Automatic Backups**:
+- **Daily backups**: Retained for 7 days
+- **Weekly backups**: Retained for 4 weeks
+- **Monthly backups**: Retained for 3 months
+
+**Manual Backup Command**:
+```bash
+pg_dump "postgresql://postgres:[PASSWORD]@db.supabase.co:5432/postgres" \
+  --schema=public \
+  --format=custom \
+  --file=backup_$(date +%Y%m%d).dump
+```
+
+**Recovery Time Objective (RTO)**: 1 hour  
+**Recovery Point Objective (RPO)**: 24 hours (daily backup)
+
+---
+
+### Security Considerations
+
+#### Row Level Security (RLS)
+
+Supabase RLS policies enforce tenant isolation:
+
+```sql
+-- Example RLS Policy for properties
+CREATE POLICY "Users can only access properties in their office"
+ON properties
+FOR ALL
+USING (
+  office_id IN (
+    SELECT office_id FROM user_permissions 
+    WHERE id = auth.uid()
+  )
+);
+```
+
+#### Sensitive Data Protection
+
+**Encrypted at Rest**:
+- `password_hash` (bcrypt)
+- `whatsapp_api_token` (AES-256)
+
+**Masked in Logs**:
+- Phone numbers
+- Email addresses
+- API tokens
+
+**GDPR Compliance**:
+- Personal data stored in `customers` and `user_permissions`
+- Data export API available
+- Right to erasure implemented via cascade deletes
+
+---
+
+### Schema Change Log
+
+| Date | Table | Change | Reason |
+|:---|:---|:---|:---|
+| 2025-11-11 | `user_permissions` | Renamed `phone` → `phone_number` | Consistency with database convention |
+| 2025-11-11 | `offices` | Added `whatsapp_phone_number` | Alternative contact support |
+| 2025-11-10 | `properties` | Added `embedding vector(1536)` | Semantic search capability |
+| 2025-11-09 | `appointments` | Added `reminder_sent boolean` | Automated reminder tracking |
+
+---
+
+**Last Updated**: 2025-11-11  
+**Schema Version**: 1.2.0  
+**Maintained By**: Database Architecture Team
+
