@@ -196,6 +196,7 @@ async function main() {
 
     if (userError) {
       log('❌ Error creating user: ' + userError.message, colors.red);
+      log('Error details: ' + JSON.stringify(userError, null, 2), colors.yellow);
       throw userError;
     }
 
@@ -217,7 +218,12 @@ async function main() {
 
   } catch (error: any) {
     log('\n❌ Fatal Error:', colors.red + colors.bold);
-    log(error.message || error, colors.red);
+    log(error.message || 'Unknown error', colors.red);
+    if (error.details) log('Details: ' + error.details, colors.yellow);
+    if (error.hint) log('Hint: ' + error.hint, colors.yellow);
+    if (error.code) log('Code: ' + error.code, colors.yellow);
+    log('\nFull error object:', colors.yellow);
+    console.log(JSON.stringify(error, null, 2));
     console.log();
     process.exit(1);
   }
