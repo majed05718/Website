@@ -123,7 +123,7 @@ async function main() {
     // Check if user already exists
     log('🔍 Checking if user already exists...', colors.cyan);
     const { data: existingUser } = await supabase
-      .from('users')
+      .from('user_permissions')
       .select('id, email')
       .eq('email', email)
       .single();
@@ -151,7 +151,7 @@ async function main() {
         .insert({
           office_code: 'system',
           office_name: 'System Administration',
-          whatsapp_number: '+966500000000',
+          whatsapp_phone_number: '+966500000000',
         })
         .select()
         .single();
@@ -176,7 +176,7 @@ async function main() {
     // Create superadmin user
     log('👤 Creating superadmin user...', colors.cyan);
     const { data: newUser, error: userError } = await supabase
-      .from('users')
+      .from('user_permissions')
       .insert({
         office_id: officeId,
         name: name,
@@ -185,7 +185,6 @@ async function main() {
         role: 'system_admin',
         password_hash: passwordHash,
         is_active: true,
-        status: 'active',
         permissions: {
           all: true,
           system_admin: true,
