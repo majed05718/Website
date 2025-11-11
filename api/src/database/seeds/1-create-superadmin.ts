@@ -151,6 +151,7 @@ async function main() {
         .insert({
           office_code: 'system',
           office_name: 'System Administration',
+          whatsapp_number: '+966500000000',
         })
         .select()
         .single();
