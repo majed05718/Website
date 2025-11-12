@@ -1,5 +1,6 @@
 import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -15,23 +16,24 @@ export class AuthService {
   constructor(
     private readonly jwtService: JwtService,
     private readonly supabaseService: SupabaseService,
+    private readonly configService: ConfigService,
   ) {}
 
   /**
    * Validate user credentials
    * 
-   * @param email - User email
+   * @param phone - User phone number
    * @param password - User password (plain text)
    * @returns User object if valid, null otherwise
    */
-  async validateUser(email: string, password: string): Promise<any> {
+  async validateUser(phone: string, password: string): Promise<any> {
     const supabase = this.supabaseService.getClient();
     
-    // Find user by email
+    // Find user by phone
     const { data: user, error } = await supabase
       .from('users')
       .select('*')
-      .eq('email', email)
+      .eq('phone', phone)
       .single();
 
     if (error || !user) {
@@ -67,15 +69,15 @@ export class AuthService {
     
     // Generate access token (15 minutes)
     const accessToken = this.jwtService.sign(payload, {
-      expiresIn: process.env.JWT_EXPIRES_IN || '15m',
+      expiresIn: this.configService.get<string>('app.jwt.expiresIn', '15m'),
     });
     
     // Generate refresh token (7 days)
     const refreshToken = this.jwtService.sign(
       { sub: user.id, type: 'refresh' },
       {
-        secret: process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET || 'default-refresh-secret',
-        expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+        secret: this.configService.get<string>('app.jwt.refreshSecret'),
+        expiresIn: this.configService.get<string>('app.jwt.refreshExpiresIn', '7d'),
       }
     );
     
@@ -104,7 +106,7 @@ export class AuthService {
     const supabase = this.supabaseService.getClient();
     const { data: user, error } = await supabase
       .from('users')
-      .select('id, email, role, office_id, status')
+      .select('id, email, phone, role, office_id, status')
       .eq('id', userId)
       .single();
       
@@ -119,14 +121,14 @@ export class AuthService {
     const payload = this.getTokenPayload(user);
     
     const accessToken = this.jwtService.sign(payload, {
-      expiresIn: process.env.JWT_EXPIRES_IN || '15m',
+      expiresIn: this.configService.get<string>('app.jwt.expiresIn', '15m'),
     });
     
     const newRefreshToken = this.jwtService.sign(
       { sub: user.id, type: 'refresh' },
       {
-        secret: process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET || 'default-refresh-secret',
-        expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+        secret: this.configService.get<string>('app.jwt.refreshSecret'),
+        expiresIn: this.configService.get<string>('app.jwt.refreshExpiresIn', '7d'),
       }
     );
     
@@ -259,6 +261,7 @@ export class AuthService {
   private getTokenPayload(user: any) {
     return {
       sub: user.id,
+      phone: user.phone,
       email: user.email,
       role: user.role,
       officeId: user.office_id,

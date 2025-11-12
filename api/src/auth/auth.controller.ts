@@ -1,4 +1,5 @@
 import { Controller, Post, Body, Req, Res, UseGuards, HttpCode, HttpStatus, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -18,7 +19,10 @@ import { Public } from './decorators/public.decorator';
  */
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly configService: ConfigService,
+  ) {}
 
   /**
    * Login endpoint - PUBLIC (no authentication required)
@@ -37,10 +41,10 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     // 1. Validate user credentials
-    const user = await this.authService.validateUser(loginDto.email, loginDto.password);
+    const user = await this.authService.validateUser(loginDto.phone, loginDto.password);
     
     if (!user) {
-      throw new UnauthorizedException('البريد الإلكتروني أو كلمة المرور غير صحيحة');
+      throw new UnauthorizedException('رقم الجوال أو كلمة المرور غير صحيحة');
     }
     
     // 2. Generate access and refresh tokens
@@ -52,9 +56,10 @@ export class AuthController {
     const { accessToken, refreshToken } = await this.authService.login(user, deviceInfo);
     
     // 3. Set refresh token as HttpOnly cookie (7 days)
+    const isProduction = this.configService.get<string>('app.nodeEnv') === 'production';
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production', // HTTPS only in production
+      secure: isProduction, // HTTPS only in production
       sameSite: 'strict',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       path: '/',
@@ -66,6 +71,7 @@ export class AuthController {
       accessToken,
       user: {
         id: user.id,
+        phone: user.phone,
         email: user.email,
         name: user.name,
         role: user.role,
@@ -99,9 +105,10 @@ export class AuthController {
     const { accessToken, refreshToken } = await this.authService.refreshTokens(userId, oldRefreshToken);
     
     // 3. Set new refresh token as HttpOnly cookie
+    const isProduction = this.configService.get<string>('app.nodeEnv') === 'production';
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: isProduction,
       sameSite: 'strict',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       path: '/',
@@ -139,9 +146,10 @@ export class AuthController {
     await this.authService.logout(userId, refreshToken);
     
     // 3. Clear refresh token cookie
+    const isProduction = this.configService.get<string>('app.nodeEnv') === 'production';
     res.clearCookie('refreshToken', {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: isProduction,
       sameSite: 'strict',
       path: '/',
     });
@@ -171,6 +179,7 @@ export class AuthController {
       success: true,
       user: {
         id: user['sub'] || user['id'],
+        phone: user['phone'],
         email: user['email'],
         role: user['role'],
         officeId: user['officeId'] || user['office_id'],
