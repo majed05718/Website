@@ -7,15 +7,27 @@
     "build:api": "cd api && npm run build",
     "build:web": "cd Web && npm run build",
     "build:all": "npm run build:api && npm run build:web",
+    "verify:all": "cd api && npm run build && cd ../Web && npm run type-check",
+    "lint:api": "cd api && npm run lint",
+    "lint:web": "cd Web && npm run lint",
     "start:api": "cd api && npm run start:prod",
     "start:web": "cd Web && npm run start",
     "start:all": "concurrently \"npm run start:api\" \"npm run start:web\"",
     "dev:api": "cd api && npm run start:dev",
     "dev:web": "cd Web && npm run dev",
-    "dev:all": "concurrently \"npm run dev:api\" \"npm run dev:web\""
+    "dev:all": "concurrently \"npm run dev:api\" \"npm run dev:web\"",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "Web/**/*.{ts,tsx}": "npm run lint:web",
+    "api/**/*.ts": "npm run lint:api"
   },
   "dependencies": {
     "concurrently": "^8.2.0",
     "pg": "^8.16.3"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.6"
   }
 }
