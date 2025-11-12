@@ -31,7 +31,7 @@ export class AuthService {
     
     // Find user by phone
     const { data: user, error } = await supabase
-      .from('users')
+      .from('user_permissions')
       .select('*')
       .eq('phone', phone)
       .single();
@@ -41,7 +41,7 @@ export class AuthService {
     }
 
     // Check if user is active
-    if (user.status !== 'active') {
+    if (user.is_active !== true) {
       throw new UnauthorizedException('حساب المستخدم غير نشط');
     }
 
@@ -105,12 +105,12 @@ export class AuthService {
     // Get user details
     const supabase = this.supabaseService.getClient();
     const { data: user, error } = await supabase
-      .from('users')
-      .select('id, email, phone, role, office_id, status')
-      .eq('id', userId)
+      .from('user_permissions')
+      .select('id, user_id, email, phone, role, office_id, is_active')
+      .eq('user_id', userId)
       .single();
       
-    if (error || !user || user.status !== 'active') {
+    if (error || !user || user.is_active !== true) {
       throw new UnauthorizedException('المستخدم غير موجود أو غير نشط');
     }
     
