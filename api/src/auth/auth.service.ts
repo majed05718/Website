@@ -29,9 +29,9 @@ export class AuthService {
   async validateUser(phone: string, password: string): Promise<any> {
     const supabase = this.supabaseService.getClient();
     
-    // Find user by phone
+    // Find user by phone in user_permissions table
     const { data: user, error } = await supabase
-      .from('users')
+      .from('user_permissions')
       .select('*')
       .eq('phone', phone)
       .single();
@@ -40,8 +40,8 @@ export class AuthService {
       return null;
     }
 
-    // Check if user is active
-    if (user.status !== 'active') {
+    // Check if user is active (using is_active field)
+    if (!user.is_active) {
       throw new UnauthorizedException('حساب المستخدم غير نشط');
     }
 
@@ -102,15 +102,15 @@ export class AuthService {
       throw new UnauthorizedException('رمز التحديث غير صالح أو منتهي الصلاحية');
     }
     
-    // Get user details
+    // Get user details from user_permissions table
     const supabase = this.supabaseService.getClient();
     const { data: user, error } = await supabase
-      .from('users')
-      .select('id, email, phone, role, office_id, status')
+      .from('user_permissions')
+      .select('id, email, phone, role, office_id, is_active')
       .eq('id', userId)
       .single();
       
-    if (error || !user || user.status !== 'active') {
+    if (error || !user || !user.is_active) {
       throw new UnauthorizedException('المستخدم غير موجود أو غير نشط');
     }
     

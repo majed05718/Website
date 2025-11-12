@@ -123,7 +123,7 @@ async function main() {
     // Check if user already exists
     log('🔍 Checking if user already exists...', colors.cyan);
     const { data: existingUser } = await supabase
-      .from('users')
+      .from('user_permissions')
       .select('id, email')
       .eq('email', email)
       .single();
@@ -173,19 +173,19 @@ async function main() {
     const saltRounds = 10;
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
-    // Create superadmin user
+    // Create superadmin user in user_permissions table
     log('👤 Creating superadmin user...', colors.cyan);
     const { data: newUser, error: userError } = await supabase
-      .from('users')
+      .from('user_permissions')
       .insert({
         office_id: officeId,
+        user_id: null,
         name: name,
         phone: phone,
         email: email,
-        role: 'system_admin',
+        role: 'SystemAdmin',
         password_hash: passwordHash,
         is_active: true,
-        status: 'active',
         permissions: {
           all: true,
           system_admin: true,
@@ -211,7 +211,7 @@ async function main() {
     log(`  Active:    ${newUser.is_active}`, colors.green);
     console.log('═'.repeat(60));
     log('\n🎉 You can now login with these credentials!', colors.green + colors.bold);
-    log('   Email:    ' + email, colors.cyan);
+    log('   Phone:    ' + phone, colors.cyan);
     log('   Password: (the password you provided)', colors.cyan);
     console.log();
 
