@@ -123,7 +123,7 @@ async function main() {
     // Check if user already exists
     log('🔍 Checking if user already exists...', colors.cyan);
     const { data: existingUser } = await supabase
-      .from('user_permissions')
+      .from('users')
       .select('id, email')
       .eq('email', email)
       .single();
@@ -176,16 +176,16 @@ async function main() {
     // Create superadmin user
     log('👤 Creating superadmin user...', colors.cyan);
     const { data: newUser, error: userError } = await supabase
-      .from('user_permissions')
+      .from('users')
       .insert({
         office_id: officeId,
-        user_id: null, // Will be updated after Supabase auth user creation
         name: name,
         phone: phone,
         email: email,
-        role: 'SystemAdmin',
+        role: 'system_admin',
         password_hash: passwordHash,
         is_active: true,
+        status: 'active',
         permissions: {
           all: true,
           system_admin: true,
