@@ -17,17 +17,18 @@ import { RateLimitGuard } from './common/guards/rate-limit.guard';
 import { ActivityLogInterceptor } from './common/interceptors/activity-log.interceptor';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { JwtMiddleware } from './auth/jwt.middleware';
-import appConfig from './config/app.config';
+import configuration from './config/configuration';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [appConfig],
+      load: [configuration],
       envFilePath: [
         `.env.${process.env.NODE_ENV || 'development'}`,
         '.env',
       ],
+      cache: true,
     }),
     // إعداد Throttler بثلاثة ملفات تعريف: افتراضي 1000، عام 100، مصدق 20 في الدقيقة
     ThrottlerModule.forRoot([

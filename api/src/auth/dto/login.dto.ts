@@ -1,9 +1,9 @@
-import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
+import { IsNotEmpty, IsString, MinLength, Matches } from 'class-validator';
 
 export class LoginDto {
-  @IsEmail({}, { message: 'البريد الإلكتروني غير صالح' })
-  @IsNotEmpty({ message: 'البريد الإلكتروني مطلوب' })
-  email: string;
+  @Matches(/^5[0-9]{8}$/, { message: 'رقم الجوال يجب أن يبدأ بـ 5 ويتكون من 9 أرقام' })
+  @IsNotEmpty({ message: 'رقم الجوال مطلوب' })
+  phone: string;
 
   @IsString({ message: 'كلمة المرور يجب أن تكون نصاً' })
   @IsNotEmpty({ message: 'كلمة المرور مطلوبة' })

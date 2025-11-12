@@ -26,12 +26,13 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
    * @returns User object to be attached to request.user
    */
   async validate(payload: any) {
-    if (!payload.sub || !payload.email) {
+    if (!payload.sub) {
       throw new UnauthorizedException('رمز الدخول غير صالح');
     }
 
     return {
       id: payload.sub,
+      phone: payload.phone,
       email: payload.email,
       role: payload.role,
       officeId: payload.officeId,

@@ -28,7 +28,7 @@ export class RefreshTokenStrategy extends PassportStrategy(Strategy, 'jwt-refres
         },
       ]),
       ignoreExpiration: false,
-      secretOrKey: configService.get<string>('app.jwt.secret', 'default-secret-change-in-production'),
+      secretOrKey: configService.get<string>('app.jwt.refreshSecret') || configService.get<string>('app.jwt.secret', 'default-secret-change-in-production'),
       passReqToCallback: true,
     });
   }
