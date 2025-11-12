@@ -123,7 +123,7 @@ async function main() {
     // Check if user already exists
     log('🔍 Checking if user already exists...', colors.cyan);
     const { data: existingUser } = await supabase
-      .from('users')
+      .from('user_permissions')
       .select('id, email')
       .eq('email', email)
       .single();
@@ -176,16 +176,16 @@ async function main() {
     // Create superadmin user
     log('👤 Creating superadmin user...', colors.cyan);
     const { data: newUser, error: userError } = await supabase
-      .from('users')
+      .from('user_permissions')
       .insert({
         office_id: officeId,
+        user_id: null, // Will be updated after Supabase auth user creation
         name: name,
         phone: phone,
         email: email,
-        role: 'system_admin',
+        role: 'SystemAdmin',
         password_hash: passwordHash,
         is_active: true,
-        status: 'active',
         permissions: {
           all: true,
           system_admin: true,
@@ -208,7 +208,7 @@ async function main() {
     log(`  Phone:     ${newUser.phone}`, colors.cyan);
     log(`  Role:      ${newUser.role}`, colors.cyan);
     log(`  Office ID: ${newUser.office_id}`, colors.cyan);
-    log(`  Status:    ${newUser.status}`, colors.green);
+    log(`  Active:    ${newUser.is_active}`, colors.green);
     console.log('═'.repeat(60));
     log('\n🎉 You can now login with these credentials!', colors.green + colors.bold);
     log('   Email:    ' + email, colors.cyan);
