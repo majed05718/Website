@@ -6,9 +6,8 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { RefreshTokenStrategy } from './strategies/refresh.strategy';
-import { JwtAuthGuard } from './guards/jwt-auth.guard';
-import { RefreshAuthGuard } from './guards/refresh-auth.guard';
 import { SupabaseModule } from '../supabase/supabase.module';
+import { LocalStrategy } from './strategies/local.strategy'; // <-- استيراد جديد
 
 /**
  * Authentication Module
@@ -36,9 +35,8 @@ import { SupabaseModule } from '../supabase/supabase.module';
     AuthService,
     JwtStrategy,
     RefreshTokenStrategy,
-    JwtAuthGuard,
-    RefreshAuthGuard,
+    LocalStrategy,
   ],
-  exports: [AuthService, JwtAuthGuard, RefreshAuthGuard],
+  exports: [AuthService],
 })
 export class AuthModule {}

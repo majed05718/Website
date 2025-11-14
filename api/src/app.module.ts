@@ -6,6 +6,7 @@ import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { SupabaseModule } from './supabase/supabase.module';
 import { HealthModule } from './health/health.module';
 import { PropertiesModule } from './properties/properties.module';
+import { AuthModule } from './auth/auth.module'; // <-- هل هو مستورد؟
 import { PaymentsModule } from './payments/payments.module';
 import { MaintenanceModule } from './maintenance/maintenance.module';
 import { WhatsAppModule } from './whatsapp/whatsapp.module';
@@ -71,6 +72,7 @@ import configuration from './config/configuration';
     AnalyticsModule,
     CustomersModule,
     AppointmentsModule,
+    AuthModule, // <-- ✅ يجب أن يكون AuthModule هنا
   ],
   providers: [
     { provide: APP_GUARD, useClass: RateLimitGuard },
@@ -78,12 +80,13 @@ import configuration from './config/configuration';
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },
   ],
 })
-export class AppModule implements NestModule {
+
+export class AppModule{/* implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     // تطبيق وسيط JWT على جميع المسارات باستثناء /health
     consumer
       .apply(JwtMiddleware)
       .exclude({ path: 'health', method: RequestMethod.ALL })
       .forRoutes({ path: '*', method: RequestMethod.ALL });
-  }
+  }*/
 }

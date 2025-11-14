@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { SupabaseService } from '../supabase/supabase.service';
+import { LocalStrategy } from './strategies/local.strategy'; // <-- استيراد جديد
 
 /**
  * Authentication Service

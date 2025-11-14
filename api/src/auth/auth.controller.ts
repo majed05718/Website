@@ -7,6 +7,7 @@ import { RefreshAuthGuard } from './guards/refresh-auth.guard';
 import { LoginDto } from './dto/login.dto';
 import { LogoutDto } from './dto/logout.dto';
 import { Public } from './decorators/public.decorator';
+import { AuthGuard } from '@nestjs/passport';
 
 /**
  * Authentication Controller
@@ -33,6 +34,7 @@ export class AuthController {
    * @returns Access token and user info
    */
   @Public() // Exempt from global JWT guard
+  @UseGuards(AuthGuard('local')) // <-- هذا هو السلك الحاسم الذي يربط كل شيء!
   @Post('login')
   @HttpCode(HttpStatus.OK)
   async login(
