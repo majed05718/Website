@@ -7,26 +7,67 @@
  */
 
 import { useState, useEffect, useCallback } from 'react'
+import dynamic from 'next/dynamic'
 import { startOfMonth, endOfMonth } from 'date-fns'
 import { toast } from 'sonner'
-import {
-  KPICards,
-  DateRangeFilter,
-  RevenueChart,
-  RevenuePieChart,
-  ExpensesDonutChart,
-  CashFlowChart,
-  TopPropertiesTable,
-  ActiveContractsTable,
-  BudgetSection,
-  ProfitLossStatement,
-  ReportGenerator
-} from '@/components/finance'
+import { DateRangeFilter } from '@/components/finance'
+import { ChartLoadingSkeleton, TableLoadingSkeleton, ComponentLoadingSkeleton } from '@/components/ui/loading-skeleton'
 import type {
   DateRange,
   FinanceDashboardData,
   ReportConfig
 } from '@/types/finance'
+
+// Dynamic imports for heavy components
+const KPICards = dynamic(
+  () => import('@/components/finance').then(mod => ({ default: mod.KPICards })),
+  { ssr: false, loading: () => <ComponentLoadingSkeleton /> }
+)
+
+const RevenueChart = dynamic(
+  () => import('@/components/finance').then(mod => ({ default: mod.RevenueChart })),
+  { ssr: false, loading: () => <ChartLoadingSkeleton /> }
+)
+
+const RevenuePieChart = dynamic(
+  () => import('@/components/finance').then(mod => ({ default: mod.RevenuePieChart })),
+  { ssr: false, loading: () => <ChartLoadingSkeleton /> }
+)
+
+const ExpensesDonutChart = dynamic(
+  () => import('@/components/finance').then(mod => ({ default: mod.ExpensesDonutChart })),
+  { ssr: false, loading: () => <ChartLoadingSkeleton /> }
+)
+
+const CashFlowChart = dynamic(
+  () => import('@/components/finance').then(mod => ({ default: mod.CashFlowChart })),
+  { ssr: false, loading: () => <ChartLoadingSkeleton /> }
+)
+
+const TopPropertiesTable = dynamic(
+  () => import('@/components/finance').then(mod => ({ default: mod.TopPropertiesTable })),
+  { ssr: false, loading: () => <TableLoadingSkeleton /> }
+)
+
+const ActiveContractsTable = dynamic(
+  () => import('@/components/finance').then(mod => ({ default: mod.ActiveContractsTable })),
+  { ssr: false, loading: () => <TableLoadingSkeleton /> }
+)
+
+const BudgetSection = dynamic(
+  () => import('@/components/finance').then(mod => ({ default: mod.BudgetSection })),
+  { ssr: false, loading: () => <ComponentLoadingSkeleton /> }
+)
+
+const ProfitLossStatement = dynamic(
+  () => import('@/components/finance').then(mod => ({ default: mod.ProfitLossStatement })),
+  { ssr: false, loading: () => <ComponentLoadingSkeleton /> }
+)
+
+const ReportGenerator = dynamic(
+  () => import('@/components/finance').then(mod => ({ default: mod.ReportGenerator })),
+  { ssr: false, loading: () => <ComponentLoadingSkeleton /> }
+)
 
 export default function FinancePage() {
   // ═══════════════════════════════════════════════════════════

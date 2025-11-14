@@ -3,6 +3,7 @@ import { Controller, Get } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { SupabaseService } from '../supabase/supabase.service';
+import { Public } from '../auth/decorators/public.decorator';
 
 interface HealthResponse {
   ok: boolean;
@@ -24,6 +25,7 @@ export class HealthController {
     private supabaseService: SupabaseService
   ) {}
 
+  @Public()
   @Get()
   @ApiOperation({ summary: 'Health check endpoint' })
   @ApiResponse({

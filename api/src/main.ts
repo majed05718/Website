@@ -1,20 +1,23 @@
-import { NestFactory } from '@nestjs/core';
+import { NestFactory, Reflector } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
 import * as compression from 'compression';
+import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Environment variables
-  const port = parseInt(process.env.PORT || '3001', 10);
-  const nodeEnv = process.env.NODE_ENV || 'development';
-  const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',').map(origin => origin.trim()) || [
+  // Get ConfigService to access typed configuration
+  const configService = app.get(ConfigService);
+  const port = configService.get<number>('app.port', 3001);
+  const nodeEnv = configService.get<string>('app.nodeEnv', 'development');
+  const allowedOrigins = configService.get<string[]>('app.allowedOrigins', [
     'http://localhost:3000',
     'http://127.0.0.1:3000',
-  ];
+  ]);
 
   // Security - Helmet
   app.use(
@@ -36,6 +39,11 @@ async function bootstrap() {
       forbidNonWhitelisted: true,
     })
   );
+
+  // Global Authentication Guard - Apply JWT Auth to ALL routes by default
+  // Routes marked with @Public() decorator are exempt
+  const reflector = app.get(Reflector);
+  app.useGlobalGuards(new JwtAuthGuard(reflector));
 
   // CORS Configuration
   app.enableCors({

@@ -46,9 +46,39 @@ nano Web/.env.local  # عدّل القيم
 
 ### 3. أول نشر
 
+**⚠️ تحذير مهم:**
+- تأكد من استخدام `NODE_ENV=production` فقط (لا `staging` أو غيرها)
+- عملية البناء تستغرق 2-5 دقائق للواجهة الأمامية
+- يجب بناء المشروع قبل التشغيل في وضع الإنتاج
+
 ```bash
 chmod +x scripts/*.sh
 ./scripts/first-deploy.sh
+
+# التحقق من البناء
+ls -la api/dist/main.js        # Backend build
+ls -la Web/.next/BUILD_ID       # Frontend build (الأهم!)
+```
+
+**في حالة الفشل:**
+
+```bash
+# بناء يدوي
+cd /var/www/property-management/api
+export NODE_ENV=production
+npm install
+npm run build
+
+cd /var/www/property-management/Web
+export NODE_ENV=production
+npm install
+rm -rf .next
+npm run build  # يستغرق 2-5 دقائق
+
+# تشغيل PM2
+cd /var/www/property-management
+pm2 start ecosystem.config.js
+pm2 save
 ```
 
 ### 4. إعداد Nginx
@@ -207,11 +237,33 @@ pm2 logs backend --lines 50
 pm2 restart backend
 ```
 
-### Frontend لا يعمل
+### Frontend لا يعمل ⚠️ الأكثر شيوعاً
+
+**الأعراض:**
+- ❌ Error: "Could not find a production build in the '.next' directory"
+- ⚠️ Warning: "You are using a non-standard NODE_ENV value"
+
+**الحل:**
 
 ```bash
+# التحقق من السجلات
 pm2 logs frontend --lines 50
+
+# التحقق من وجود البناء
+ls -la /var/www/property-management/Web/.next/BUILD_ID
+
+# إذا لم يكن موجوداً، قم بالبناء:
+cd /var/www/property-management/Web
+export NODE_ENV=production
+rm -rf .next
+npm run build  # يستغرق 2-5 دقائق
+
+# التحقق من النجاح
+ls -la .next/BUILD_ID && echo "✅ نجح" || echo "❌ فشل"
+
+# إعادة تشغيل
 pm2 restart frontend
+pm2 logs frontend
 ```
 
 ### Nginx error

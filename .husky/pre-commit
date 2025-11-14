@@ -1,0 +1,13 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+echo "🔍 Running pre-commit checks..."
+echo "🏗️  Building projects and type-checking..."
+
+# Run verification (build + type-check)
+npm run verify:all || {
+  echo "❌ Build or type-check failed! Please fix errors before committing."
+  exit 1
+}
+
+echo "✅ All pre-commit checks passed!"

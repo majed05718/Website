@@ -8,6 +8,7 @@ import * as z from 'zod'
 import { toast } from 'sonner'
 import { Eye, EyeOff, Phone, Lock, Home } from 'lucide-react'
 import { useAuthStore } from '@/store/auth-store'
+import { authApi } from '@/lib/api/auth'
 
 const loginSchema = z.object({
   phone: z.string().regex(/^5[0-9]{8}$/, 'رقم الجوال يجب أن يبدأ بـ 5 ويتكون من 9 أرقام'),
@@ -33,30 +34,22 @@ export default function LoginPage() {
   const onSubmit = async (data: LoginForm) => {
     setIsLoading(true)
     try {
-      // ⚠️ Development only - skip API validation
-const mockUser = {
-  id: '1-mock',
-  name: 'Majed Admin',
-  phone: '0500000000',
-  role: 'admin',
-  officeId: 'office-1',
-  email: 'mock.user@example.com', // <-- السطر المضاف
-};
-
-      const mockToken = 'dev-token-' + Date.now()
+      // Call real login API
+      const response = await authApi.login({
+        phone: data.phone,
+        password: data.password,
+      })
 
       // Save to Zustand store
-      setAuth(mockUser, mockToken)
+      setAuth(response.user, response.accessToken)
 
-      // Save to cookie for middleware
-      if (typeof window !== 'undefined') {
-        document.cookie = `auth_token=${mockToken}; path=/; max-age=${60 * 60 * 24 * 7}` // 7 days
-      }
-
-      toast.success('تم تسجيل الدخول بنجاح')
+      toast.success(response.message || 'تم تسجيل الدخول بنجاح')
       router.push('/dashboard')
-    } catch (error) {
-      toast.error('حدث خطأ في تسجيل الدخول')
+    } catch (error: any) {
+      // Error handling is done by axios interceptor
+      // Just show a user-friendly message if needed
+      const errorMessage = error?.response?.data?.message || 'رقم الجوال أو كلمة المرور غير صحيحة'
+      toast.error(errorMessage)
     } finally {
       setIsLoading(false)
     }
@@ -75,9 +68,6 @@ const mockUser = {
           </h1>
           <p className="text-gray-600">
             مرحباً بك! سجل دخولك للمتابعة
-          </p>
-          <p className="text-sm text-orange-600 mt-2">
-            ⚠️ وضع التطوير: أدخل أي بيانات صحيحة
           </p>
         </div>
 

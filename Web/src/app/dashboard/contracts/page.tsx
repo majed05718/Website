@@ -7,6 +7,7 @@
  */
 
 import { useState, useEffect, useMemo } from 'react'
+import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -19,12 +20,8 @@ import {
   RefreshCw,
   Clock
 } from 'lucide-react'
-import {
-  StatsCards,
-  ContractsFilters,
-  ContractsTable,
-  ContractCard
-} from '@/components/contracts'
+import { ContractsFilters } from '@/components/contracts'
+import { TableLoadingSkeleton, ComponentLoadingSkeleton } from '@/components/ui/loading-skeleton'
 import type { 
   Contract, 
   ContractFilters, 
@@ -32,6 +29,22 @@ import type {
   ViewMode 
 } from '@/types/contract'
 import { toast } from 'sonner'
+
+// Dynamic imports for heavy components
+const StatsCards = dynamic(
+  () => import('@/components/contracts').then(mod => ({ default: mod.StatsCards })),
+  { ssr: false, loading: () => <ComponentLoadingSkeleton /> }
+)
+
+const ContractsTable = dynamic(
+  () => import('@/components/contracts').then(mod => ({ default: mod.ContractsTable })),
+  { ssr: false, loading: () => <TableLoadingSkeleton /> }
+)
+
+const ContractCard = dynamic(
+  () => import('@/components/contracts').then(mod => ({ default: mod.ContractCard })),
+  { ssr: false, loading: () => <ComponentLoadingSkeleton /> }
+)
 
 // بيانات تجريبية
 const MOCK_CONTRACTS: Contract[] = [

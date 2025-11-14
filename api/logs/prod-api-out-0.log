@@ -1,0 +1,200 @@
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [NestFactory] Starting Nest application...
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [InstanceLoader] ThrottlerModule dependencies initialized +11ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [InstanceLoader] ConfigHostModule dependencies initialized +1ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [InstanceLoader] ConfigModule dependencies initialized +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [InstanceLoader] SupabaseModule dependencies initialized +13ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [InstanceLoader] HealthModule dependencies initialized +1ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [InstanceLoader] OnboardingModule dependencies initialized +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [InstanceLoader] AppModule dependencies initialized +1ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [InstanceLoader] CustomersModule dependencies initialized +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [InstanceLoader] AppointmentsModule dependencies initialized +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [InstanceLoader] PropertiesModule dependencies initialized +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [InstanceLoader] PaymentsModule dependencies initialized +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [InstanceLoader] AnalyticsModule dependencies initialized +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [InstanceLoader] WhatsAppModule dependencies initialized +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [InstanceLoader] MaintenanceModule dependencies initialized +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RoutesResolver] HealthController {/api/health}: +7ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/health, GET} route +1ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RoutesResolver] PropertiesController {/api/properties}: +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/properties, GET} route +1ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/properties/:id, GET} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/properties, POST} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/properties/:id, PATCH} route +1ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/properties/:id, DELETE} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RoutesResolver] PublicController {/api/public}: +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/public/offices/:officeCode/listings, GET} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/public/offices/:officeCode/properties/:slug, GET} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RoutesResolver] ExcelController {/api}: +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/properties/import, POST} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/properties/import/confirm, POST} route +1ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/properties/export, GET} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RoutesResolver] MediaController {/api}: +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/media/signed-url, POST} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/properties/:id/images, POST} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/properties/:propertyId/images/:imageId, PATCH} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/properties/:propertyId/images/:imageId, DELETE} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RoutesResolver] PaymentsController {/api}: +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/payments, GET} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/contracts/:contractId/payments, GET} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/payments/:id/mark-paid, PATCH} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/payments/overdue, GET} route +1ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/payments/:id/send-reminder, POST} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RoutesResolver] MaintenanceController {/api}: +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/maintenance, GET} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/maintenance/:id, GET} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/maintenance, POST} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/public/maintenance, POST} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/maintenance/:id, PATCH} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/maintenance/:id/complete, POST} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RoutesResolver] WhatsAppController {/api/whatsapp}: +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/whatsapp/webhook, GET} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/whatsapp/webhook, POST} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/whatsapp/connect, POST} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/whatsapp/send-template, POST} route +5ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/whatsapp/templates, GET} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RoutesResolver] OnboardingController {/api/onboarding}: +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/onboarding/office, POST} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/onboarding/verify-code, GET} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/onboarding/complete, POST} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RoutesResolver] AnalyticsController {/api/analytics}: +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/analytics/dashboard, GET} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/analytics/properties, GET} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/analytics/financials, GET} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/analytics/kpis, GET} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/analytics/staff-performance, GET} route +1ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RoutesResolver] CustomersController {/api/customers}: +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/customers, GET} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/customers/stats, GET} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/customers/search, GET} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/customers/export, GET} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/customers/:id, GET} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/customers, POST} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/customers/:id, PATCH} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/customers/:id, DELETE} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/customers/:id/notes, GET} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/customers/:id/notes, POST} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/customers/:id/notes/:noteId, PATCH} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/customers/:id/notes/:noteId, DELETE} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/customers/:id/interactions, GET} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/customers/:id/interactions, POST} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/customers/:id/properties, POST} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/customers/:id/properties/:propertyId, DELETE} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RoutesResolver] AppointmentsController {/api/appointments}: +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/appointments, GET} route +1ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/appointments/stats, GET} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/appointments/calendar, GET} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/appointments/today, GET} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/appointments/upcoming, GET} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/appointments/:id, GET} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/appointments, POST} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/appointments/:id, PATCH} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/appointments/:id, DELETE} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/appointments/:id/status, PATCH} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/appointments/:id/cancel, PATCH} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/appointments/:id/complete, PATCH} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/appointments/:id/remind, POST} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [RouterExplorer] Mapped {/api/appointments/check-availability, POST} route +0ms
+2025-11-11 12:56:01 +00:00: [Nest] 5608  - 11/11/2025, 12:56:01 PM     LOG [NestApplication] Nest application successfully started +2ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [NestFactory] Starting Nest application...
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [InstanceLoader] ThrottlerModule dependencies initialized +11ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [InstanceLoader] ConfigHostModule dependencies initialized +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [InstanceLoader] ConfigModule dependencies initialized +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [InstanceLoader] SupabaseModule dependencies initialized +12ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [InstanceLoader] HealthModule dependencies initialized +1ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [InstanceLoader] OnboardingModule dependencies initialized +1ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [InstanceLoader] AppModule dependencies initialized +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [InstanceLoader] CustomersModule dependencies initialized +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [InstanceLoader] AppointmentsModule dependencies initialized +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [InstanceLoader] PropertiesModule dependencies initialized +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [InstanceLoader] PaymentsModule dependencies initialized +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [InstanceLoader] AnalyticsModule dependencies initialized +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [InstanceLoader] WhatsAppModule dependencies initialized +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [InstanceLoader] MaintenanceModule dependencies initialized +1ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RoutesResolver] HealthController {/api/health}: +6ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/health, GET} route +1ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RoutesResolver] PropertiesController {/api/properties}: +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/properties, GET} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/properties/:id, GET} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/properties, POST} route +1ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/properties/:id, PATCH} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/properties/:id, DELETE} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RoutesResolver] PublicController {/api/public}: +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/public/offices/:officeCode/listings, GET} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/public/offices/:officeCode/properties/:slug, GET} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RoutesResolver] ExcelController {/api}: +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/properties/import, POST} route +1ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/properties/import/confirm, POST} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/properties/export, GET} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RoutesResolver] MediaController {/api}: +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/media/signed-url, POST} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/properties/:id/images, POST} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/properties/:propertyId/images/:imageId, PATCH} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/properties/:propertyId/images/:imageId, DELETE} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RoutesResolver] PaymentsController {/api}: +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/payments, GET} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/contracts/:contractId/payments, GET} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/payments/:id/mark-paid, PATCH} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/payments/overdue, GET} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/payments/:id/send-reminder, POST} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RoutesResolver] MaintenanceController {/api}: +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/maintenance, GET} route +1ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/maintenance/:id, GET} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/maintenance, POST} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/public/maintenance, POST} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/maintenance/:id, PATCH} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/maintenance/:id/complete, POST} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RoutesResolver] WhatsAppController {/api/whatsapp}: +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/whatsapp/webhook, GET} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/whatsapp/webhook, POST} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/whatsapp/connect, POST} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/whatsapp/send-template, POST} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/whatsapp/templates, GET} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RoutesResolver] OnboardingController {/api/onboarding}: +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/onboarding/office, POST} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/onboarding/verify-code, GET} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/onboarding/complete, POST} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RoutesResolver] AnalyticsController {/api/analytics}: +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/analytics/dashboard, GET} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/analytics/properties, GET} route +4ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/analytics/financials, GET} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/analytics/kpis, GET} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/analytics/staff-performance, GET} route +1ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RoutesResolver] CustomersController {/api/customers}: +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/customers, GET} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/customers/stats, GET} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/customers/search, GET} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/customers/export, GET} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/customers/:id, GET} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/customers, POST} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/customers/:id, PATCH} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/customers/:id, DELETE} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/customers/:id/notes, GET} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/customers/:id/notes, POST} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/customers/:id/notes/:noteId, PATCH} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/customers/:id/notes/:noteId, DELETE} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/customers/:id/interactions, GET} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/customers/:id/interactions, POST} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/customers/:id/properties, POST} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/customers/:id/properties/:propertyId, DELETE} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RoutesResolver] AppointmentsController {/api/appointments}: +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/appointments, GET} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/appointments/stats, GET} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/appointments/calendar, GET} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/appointments/today, GET} route +1ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/appointments/upcoming, GET} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/appointments/:id, GET} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/appointments, POST} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/appointments/:id, PATCH} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/appointments/:id, DELETE} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/appointments/:id/status, PATCH} route +1ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/appointments/:id/cancel, PATCH} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/appointments/:id/complete, PATCH} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/appointments/:id/remind, POST} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [RouterExplorer] Mapped {/api/appointments/check-availability, POST} route +0ms
+2025-11-11 12:56:55 +00:00: [Nest] 6221  - 11/11/2025, 12:56:55 PM     LOG [NestApplication] Nest application successfully started +2ms
+2025-11-11 12:56:55 +00:00: ═══════════════════════════════════════════════════
+2025-11-11 12:56:55 +00:00: 🚀 Backend is running!
+2025-11-11 12:56:55 +00:00: 📍 Local URL:    http://localhost:3001
+2025-11-11 12:56:55 +00:00: 📚 Environment:  production
+2025-11-11 12:56:55 +00:00: 🔒 CORS Origins: https://64.227.166.229/, https://64.227.166.229/, https://64.227.166.229/
+2025-11-11 12:56:55 +00:00: ═══════════════════════════════════════════════════

@@ -7,22 +7,51 @@
  */
 
 import { useState, useEffect, useCallback } from 'react'
+import dynamic from 'next/dynamic'
 import { toast } from 'sonner'
-import {
-  StatsCards,
-  PaymentsTable,
-  PaymentFilters,
-  PaymentCharts,
-  BulkActions,
-  OverdueAlerts,
-  QuickActions,
-  PaymentStats
-} from '@/components/payments'
+import { PaymentFilters } from '@/components/payments'
+import { ChartLoadingSkeleton, TableLoadingSkeleton, ComponentLoadingSkeleton } from '@/components/ui/loading-skeleton'
 import type {
   Payment,
   PaymentFilters as FilterType,
   PaymentsDashboardData
 } from '@/types/payment'
+
+// Dynamic imports for heavy components
+const StatsCards = dynamic(
+  () => import('@/components/payments').then(mod => ({ default: mod.StatsCards })),
+  { ssr: false, loading: () => <ComponentLoadingSkeleton /> }
+)
+
+const PaymentsTable = dynamic(
+  () => import('@/components/payments').then(mod => ({ default: mod.PaymentsTable })),
+  { ssr: false, loading: () => <TableLoadingSkeleton /> }
+)
+
+const PaymentCharts = dynamic(
+  () => import('@/components/payments').then(mod => ({ default: mod.PaymentCharts })),
+  { ssr: false, loading: () => <ChartLoadingSkeleton /> }
+)
+
+const BulkActions = dynamic(
+  () => import('@/components/payments').then(mod => ({ default: mod.BulkActions })),
+  { ssr: false, loading: () => <ComponentLoadingSkeleton /> }
+)
+
+const OverdueAlerts = dynamic(
+  () => import('@/components/payments').then(mod => ({ default: mod.OverdueAlerts })),
+  { ssr: false, loading: () => <ComponentLoadingSkeleton /> }
+)
+
+const QuickActions = dynamic(
+  () => import('@/components/payments').then(mod => ({ default: mod.QuickActions })),
+  { ssr: false, loading: () => <ComponentLoadingSkeleton /> }
+)
+
+const PaymentStats = dynamic(
+  () => import('@/components/payments').then(mod => ({ default: mod.PaymentStats })),
+  { ssr: false, loading: () => <ComponentLoadingSkeleton /> }
+)
 
 export default function PaymentsPage() {
   // ═══════════════════════════════════════════════════════════

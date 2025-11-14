@@ -206,6 +206,8 @@ export default function PropertyDetailsPage() {
                     fill
                     className="object-cover"
                     priority
+                    sizes="(min-width: 1024px) 66vw, 100vw"
+                    quality={80}
                   />
                   
                   {/* أزرار التنقل */}
@@ -256,6 +258,9 @@ export default function PropertyDetailsPage() {
                       alt={`${property.title} - ${index + 1}`}
                       fill
                       className="object-cover"
+                      sizes="(max-width: 640px) 25vw, 10vw"
+                      loading="lazy"
+                      quality={60}
                     />
                   </button>
                 ))}
