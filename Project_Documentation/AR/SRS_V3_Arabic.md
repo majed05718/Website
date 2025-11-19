@@ -4492,3 +4492,2336 @@ export class ReportsController {
 
 ---
 
+# **الجزء الرابع: النظرة الفنية**
+## PART IV: TECHNICAL VIEW - The Core Engine
+
+---
+
+## 4. البنية الفنية للنظام
+
+### 4.1 معمارية النظام الشاملة (System Architecture Overview)
+
+#### 4.1.1 النمط المعماري: Layered Architecture + Microservices-Ready
+
+**النظرية (Theory - Why):**
+
+النظام يتبع **Layered Architecture** مع استعداد للتحول إلى Microservices:
+
+1. **Separation of Concerns:** كل طبقة لها مسؤولية واحدة فقط
+2. **Maintainability:** سهولة الصيانة والتطوير
+3. **Testability:** كل طبقة قابلة للاختبار بشكل مستقل
+4. **Scalability:** إمكانية تحويل كل module إلى microservice مستقبلاً
+
+**المثال (Example - What):**
+
+الطبقات الأربع الرئيسية:
+
+```
+┌─────────────────────────────────────────────┐
+│   Presentation Layer (Next.js 14)          │
+│   - UI Components                           │
+│   - State Management (Zustand)             │
+│   - Client-Side Routing                    │
+└─────────────────────────────────────────────┘
+                   ↓ HTTPS/REST
+┌─────────────────────────────────────────────┐
+│   API Gateway Layer (NestJS)               │
+│   - Authentication Guards                   │
+│   - Rate Limiting                           │
+│   - Request Validation                      │
+└─────────────────────────────────────────────┘
+                   ↓
+┌─────────────────────────────────────────────┐
+│   Business Logic Layer (NestJS Services)   │
+│   - PropertiesService                       │
+│   - ContractsService                        │
+│   - AnalyticsService                        │
+└─────────────────────────────────────────────┘
+                   ↓
+┌─────────────────────────────────────────────┐
+│   Data Access Layer (TypeORM + Supabase)   │
+│   - Repositories                            │
+│   - Database Connections                    │
+│   - Caching (Redis)                         │
+└─────────────────────────────────────────────┘
+```
+
+**المساعدة/الكود (Aid/Code - How):**
+
+**Folder Structure (Exact):**
+
+```
+/workspace/
+├── api/                          # Backend (NestJS)
+│   ├── src/
+│   │   ├── main.ts              # Entry point - Port 3001
+│   │   ├── app.module.ts        # Root module
+│   │   ├── auth/                # Authentication module
+│   │   │   ├── auth.module.ts
+│   │   │   ├── auth.controller.ts
+│   │   │   ├── auth.service.ts
+│   │   │   ├── jwt.strategy.ts
+│   │   │   ├── roles.guard.ts
+│   │   │   └── entities/
+│   │   │       └── refresh-token.entity.ts
+│   │   ├── properties/          # Properties module
+│   │   │   ├── properties.module.ts
+│   │   │   ├── properties.controller.ts
+│   │   │   ├── properties.service.ts
+│   │   │   └── dto/
+│   │   │       ├── create-property.dto.ts
+│   │   │       └── filter-properties.dto.ts
+│   │   ├── analytics/           # Analytics module
+│   │   │   ├── analytics.module.ts
+│   │   │   ├── analytics.controller.ts
+│   │   │   └── analytics.service.ts
+│   │   └── common/              # Shared utilities
+│   │       ├── interceptors/
+│   │       │   ├── tenant.interceptor.ts
+│   │       │   └── audit-log.interceptor.ts
+│   │       └── guards/
+│   │           └── permissions.guard.ts
+│   └── package.json
+│
+└── Web/                         # Frontend (Next.js 14)
+    ├── src/
+    │   ├── app/                 # App Router
+    │   │   ├── layout.tsx
+    │   │   ├── page.tsx         # Landing page
+    │   │   ├── login/
+    │   │   │   └── page.tsx
+    │   │   └── dashboard/
+    │   │       ├── layout.tsx
+    │   │       ├── page.tsx
+    │   │       ├── properties/
+    │   │       ├── customers/
+    │   │       ├── appointments/
+    │   │       ├── contracts/
+    │   │       ├── analytics/
+    │   │       ├── settings/    # حل الملاحظات 15, 16, 17, 21
+    │   │       │   ├── page.tsx
+    │   │       │   ├── appearance/
+    │   │       │   ├── notifications/
+    │   │       │   ├── staff/
+    │   │       │   ├── integrations/
+    │   │       │   └── security/
+    │   │       ├── favorites/   # حل الملاحظة 13
+    │   │       └── reports/     # حل الملاحظة 14
+    │   ├── components/
+    │   │   ├── ui/              # Shadcn components
+    │   │   └── features/        # Feature-specific components
+    │   ├── lib/
+    │   │   ├── axios.ts         # API client
+    │   │   └── api/             # API functions
+    │   │       ├── auth.ts
+    │   │       ├── properties.ts
+    │   │       └── analytics.ts
+    │   └── store/               # Zustand stores
+    │       ├── authStore.ts
+    │       ├── settingsStore.ts # حل الملاحظة 15
+    │       └── toastStore.ts
+    └── package.json
+```
+
+---
+
+### 4.2 معمارية الأمان والمصادقة (Authentication & Security Architecture)
+
+#### 4.2.1 حل الملاحظة #3: Stateless Authentication with Refresh Token Rotation
+
+**النظرية (Theory - Why):**
+
+**المشكلة:** "عملية تسجيل الدخول تنجح لكن بعد مرور الوقت يطلب تسجيل الدخول مرة أخرى بدل من استعمال refreshToken"
+
+**السبب الجذري:**
+النظام يستخدم Access Tokens قصيرة العمر (15 دقيقة) بدون آلية Silent Refresh.
+
+**الحل المعماري:**
+استخدام **JWT Refresh Token Rotation** وفقاً لمعايير OWASP:
+
+1. **Access Token:** قصير العمر (15 دقيقة) - يُرسل في Authorization header
+2. **Refresh Token:** طويل العمر (7 أيام) - يُخزن في HttpOnly Cookie
+3. **Token Rotation:** كل refresh يُنتج refresh token جديد ويُلغي القديم
+4. **Refresh Token Reuse Detection:** إذا استُخدم refresh token ملغى، يتم إلغاء جميع tokens للمستخدم
+
+**الفوائد الأمنية (OWASP Standards):**
+- **OWASP A02:2021 (Cryptographic Failures):** Tokens مُوقعة بـ HMAC-SHA256
+- **OWASP A07:2021 (Identification & Authentication Failures):** Token Rotation يمنع Token Theft
+- **NIST SP 800-63B:** Refresh tokens في HttpOnly cookies تمنع XSS attacks
+
+**المثال (Example - What):**
+
+**User Journey (Successful Flow):**
+
+```
+┌─────────┐                  ┌──────────┐                 ┌──────────┐
+│ Browser │                  │ Frontend │                 │ Backend  │
+└─────────┘                  └──────────┘                 └──────────┘
+     │                             │                            │
+     │ 1. User clicks "Login"      │                            │
+     ├────────────────────────────>│                            │
+     │                             │                            │
+     │                             │ 2. POST /api/auth/login    │
+     │                             │   { phone, password }      │
+     │                             ├──────────────────────────>│
+     │                             │                            │
+     │                             │                            │ 3. Validate credentials
+     │                             │                            │    bcrypt.compare(password, hash)
+     │                             │                            │
+     │                             │  4. Response:              │
+     │                             │    - accessToken (15min)   │
+     │                             │    - Set-Cookie: refresh_  │
+     │                             │      token (HttpOnly)      │
+     │                             │<──────────────────────────│
+     │                             │                            │
+     │ 5. Store accessToken in     │                            │
+     │    localStorage             │                            │
+     │<────────────────────────────│                            │
+     │                             │                            │
+     │ 6. Make API request         │                            │
+     │    Authorization: Bearer    │                            │
+     │    {accessToken}            │                            │
+     ├────────────────────────────>│──────────────────────────>│
+     │                             │                            │
+     │                             │  7. Response: 200 OK       │
+     │<────────────────────────────│<──────────────────────────│
+     │                             │                            │
+     │ ... 16 minutes later ...    │                            │
+     │                             │                            │
+     │ 8. Make API request         │                            │
+     │    (accessToken expired)    │                            │
+     ├────────────────────────────>│──────────────────────────>│
+     │                             │                            │
+     │                             │  9. Response: 401          │
+     │                             │     "Token expired"        │
+     │                             │<──────────────────────────│
+     │                             │                            │
+     │                             │ 10. Axios interceptor      │
+     │                             │     detects 401            │
+     │                             │                            │
+     │                             │ 11. POST /api/auth/refresh │
+     │                             │     (sends HttpOnly cookie)│
+     │                             ├──────────────────────────>│
+     │                             │                            │
+     │                             │                            │ 12. Verify refresh token
+     │                             │                            │     Check DB for revocation
+     │                             │                            │     Generate new tokens
+     │                             │                            │
+     │                             │  13. Response:             │
+     │                             │     - new accessToken      │
+     │                             │     - new refresh_token    │
+     │                             │       (rotate old one)     │
+     │                             │<──────────────────────────│
+     │                             │                            │
+     │                             │ 14. Retry original request │
+     │                             │     with new accessToken   │
+     │                             ├──────────────────────────>│
+     │                             │                            │
+     │                             │  15. Response: 200 OK      │
+     │<────────────────────────────│<──────────────────────────│
+```
+
+**المساعدة/الكود (Aid/Code - How):**
+
+**1. Database Schema (RefreshToken Entity):**
+
+```typescript
+// api/src/auth/entities/refresh-token.entity.ts
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  Index,
+  ManyToOne,
+  JoinColumn
+} from 'typeorm';
+
+@Entity('refresh_tokens')
+export class RefreshToken {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+
+  @Index()
+  @Column({ type: 'uuid' })
+  user_id: string;
+
+  // Store bcrypt hash of the token (not the token itself)
+  @Column({ type: 'varchar', length: 255 })
+  token_hash: string;
+
+  @Index()
+  @Column({ type: 'timestamp' })
+  expires_at: Date;
+
+  // Device fingerprinting for security
+  @Column({ type: 'jsonb', nullable: true })
+  device_info: {
+    userAgent?: string;
+    platform?: string;
+    browser?: string;
+  };
+
+  @Column({ type: 'varchar', nullable: true })
+  ip_address: string;
+
+  @Column({ type: 'varchar', nullable: true })
+  user_agent: string;
+
+  // Revocation flags
+  @Column({ type: 'boolean', default: false })
+  is_revoked: boolean;
+
+  @Column({ type: 'timestamp', nullable: true })
+  revoked_at: Date;
+
+  // If this token was used to create a new token (rotation)
+  @Column({ type: 'uuid', nullable: true })
+  rotated_to: string;
+
+  @Index()
+  @CreateDateColumn()
+  created_at: Date;
+
+  // Composite indexes for performance
+  @Index(['user_id', 'expires_at'])
+  composite_user_expires?: void;
+
+  @Index(['user_id', 'is_revoked'])
+  composite_user_revoked?: void;
+}
+```
+
+**SQL Migration:**
+
+```sql
+-- Create refresh_tokens table
+CREATE TABLE refresh_tokens (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL REFERENCES user_permissions(id) ON DELETE CASCADE,
+  token_hash VARCHAR(255) NOT NULL,
+  expires_at TIMESTAMP NOT NULL,
+  device_info JSONB,
+  ip_address VARCHAR(45),
+  user_agent TEXT,
+  is_revoked BOOLEAN DEFAULT false,
+  revoked_at TIMESTAMP,
+  rotated_to UUID REFERENCES refresh_tokens(id),
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Performance indexes
+CREATE INDEX idx_refresh_user ON refresh_tokens(user_id);
+CREATE INDEX idx_refresh_expires ON refresh_tokens(expires_at);
+CREATE INDEX idx_refresh_user_expires ON refresh_tokens(user_id, expires_at);
+CREATE INDEX idx_refresh_user_revoked ON refresh_tokens(user_id, is_revoked);
+
+-- Cleanup expired tokens (run daily via cron)
+CREATE OR REPLACE FUNCTION cleanup_expired_refresh_tokens()
+RETURNS void AS $$
+BEGIN
+  DELETE FROM refresh_tokens
+  WHERE expires_at < NOW() - INTERVAL '30 days';
+END;
+$$ LANGUAGE plpgsql;
+```
+
+**2. Backend Service (Token Generation & Refresh):**
+
+```typescript
+// api/src/auth/auth.service.ts
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
+import { RefreshToken } from './entities/refresh-token.entity';
+import { SupabaseService } from '../supabase/supabase.service';
+
+@Injectable()
+export class AuthService {
+  constructor(
+    private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
+    private readonly supabaseService: SupabaseService,
+    @InjectRepository(RefreshToken)
+    private readonly refreshTokenRepo: Repository<RefreshToken>
+  ) {}
+
+  /**
+   * Login: Generate access token + refresh token
+   */
+  async login(
+    user: any,
+    deviceInfo?: { userAgent: string; ip: string }
+  ): Promise<{ accessToken: string; refreshToken: string }> {
+    
+    // 1. Generate Access Token (15 minutes)
+    const accessToken = this.generateAccessToken(user);
+
+    // 2. Generate Refresh Token (7 days)
+    const refreshTokenString = this.generateRefreshTokenString();
+    
+    // 3. Hash refresh token before storing (OWASP best practice)
+    const tokenHash = await bcrypt.hash(refreshTokenString, 10);
+
+    // 4. Store in database
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+    await this.refreshTokenRepo.save({
+      user_id: user.id,
+      token_hash: tokenHash,
+      expires_at: expiresAt,
+      ip_address: deviceInfo?.ip,
+      user_agent: deviceInfo?.userAgent,
+      device_info: {
+        userAgent: deviceInfo?.userAgent,
+        platform: this.extractPlatform(deviceInfo?.userAgent),
+        browser: this.extractBrowser(deviceInfo?.userAgent)
+      }
+    });
+
+    return {
+      accessToken,
+      refreshToken: refreshTokenString
+    };
+  }
+
+  /**
+   * Refresh Tokens (Silent Refresh)
+   */
+  async refreshTokens(
+    refreshTokenString: string,
+    deviceInfo?: { userAgent: string; ip: string }
+  ): Promise<{ accessToken: string; refreshToken: string }> {
+
+    // 1. Find all active refresh tokens for this token
+    const tokens = await this.refreshTokenRepo.find({
+      where: {
+        is_revoked: false,
+        expires_at: MoreThan(new Date())
+      }
+    });
+
+    // 2. Verify hash (constant-time comparison)
+    let validToken: RefreshToken | null = null;
+    for (const token of tokens) {
+      const isValid = await bcrypt.compare(refreshTokenString, token.token_hash);
+      if (isValid) {
+        validToken = token;
+        break;
+      }
+    }
+
+    if (!validToken) {
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+
+    // 3. Check for token reuse (security breach detection)
+    if (validToken.rotated_to) {
+      // This token was already rotated - possible theft!
+      await this.revokeAllUserTokens(validToken.user_id);
+      throw new UnauthorizedException('Token reuse detected. All sessions revoked.');
+    }
+
+    // 4. Get fresh user data from database
+    const supabase = this.supabaseService.getClient();
+    const { data: user, error } = await supabase
+      .from('user_permissions')
+      .select('*')
+      .eq('id', validToken.user_id)
+      .single();
+
+    if (error || !user || !user.is_active) {
+      throw new UnauthorizedException('User not found or inactive');
+    }
+
+    // 5. Generate new tokens
+    const newAccessToken = this.generateAccessToken(user);
+    const newRefreshTokenString = this.generateRefreshTokenString();
+    const newTokenHash = await bcrypt.hash(newRefreshTokenString, 10);
+
+    // 6. Store new refresh token
+    const newRefreshToken = await this.refreshTokenRepo.save({
+      user_id: user.id,
+      token_hash: newTokenHash,
+      expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      ip_address: deviceInfo?.ip,
+      user_agent: deviceInfo?.userAgent,
+      device_info: {
+        userAgent: deviceInfo?.userAgent
+      }
+    });
+
+    // 7. Mark old token as rotated (not revoked, for audit trail)
+    await this.refreshTokenRepo.update(validToken.id, {
+      rotated_to: newRefreshToken.id
+    });
+
+    return {
+      accessToken: newAccessToken,
+      refreshToken: newRefreshTokenString
+    };
+  }
+
+  /**
+   * Revoke all tokens for a user (logout all devices)
+   */
+  private async revokeAllUserTokens(userId: string): Promise<void> {
+    await this.refreshTokenRepo.update(
+      { user_id: userId },
+      {
+        is_revoked: true,
+        revoked_at: new Date()
+      }
+    );
+  }
+
+  /**
+   * Generate Access Token (JWT)
+   */
+  private generateAccessToken(user: any): string {
+    const payload = {
+      sub: user.id,
+      user_id: user.user_id || user.id,
+      office_id: user.office_id,
+      role: user.role,
+      permissions: user.permissions
+    };
+
+    return this.jwtService.sign(payload, {
+      secret: this.configService.get<string>('JWT_SECRET'),
+      expiresIn: '15m'
+    });
+  }
+
+  /**
+   * Generate cryptographically secure refresh token
+   */
+  private generateRefreshTokenString(): string {
+    return crypto.randomBytes(64).toString('base64url');
+  }
+
+  private extractPlatform(userAgent: string): string {
+    // Simple platform detection
+    if (!userAgent) return 'unknown';
+    if (userAgent.includes('Windows')) return 'Windows';
+    if (userAgent.includes('Mac')) return 'macOS';
+    if (userAgent.includes('Linux')) return 'Linux';
+    if (userAgent.includes('Android')) return 'Android';
+    if (userAgent.includes('iOS')) return 'iOS';
+    return 'unknown';
+  }
+
+  private extractBrowser(userAgent: string): string {
+    if (!userAgent) return 'unknown';
+    if (userAgent.includes('Chrome')) return 'Chrome';
+    if (userAgent.includes('Firefox')) return 'Firefox';
+    if (userAgent.includes('Safari')) return 'Safari';
+    if (userAgent.includes('Edge')) return 'Edge';
+    return 'unknown';
+  }
+}
+```
+
+**3. Auth Controller (Endpoints):**
+
+```typescript
+// api/src/auth/auth.controller.ts
+import { Controller, Post, Body, Req, Res, UseGuards, Get } from '@nestjs/common';
+import { Response, Request } from 'express';
+import { AuthService } from './auth.service';
+import { JwtAuthGuard } from './jwt-auth.guard';
+import { Public } from './public.decorator';
+
+@Controller('auth')
+export class AuthController {
+  constructor(private readonly authService: AuthService) {}
+
+  @Public()
+  @Post('login')
+  async login(
+    @Body() dto: { phone: string; password: string },
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response
+  ) {
+    // Validate credentials
+    const user = await this.authService.validateUser(dto.phone, dto.password);
+
+    if (!user) {
+      throw new UnauthorizedException('بيانات الدخول غير صحيحة');
+    }
+
+    // Generate tokens
+    const { accessToken, refreshToken } = await this.authService.login(user, {
+      userAgent: req.headers['user-agent'],
+      ip: req.ip
+    });
+
+    // Set refresh token in HttpOnly cookie (OWASP best practice)
+    res.cookie('refresh_token', refreshToken, {
+      httpOnly: true,      // Cannot be accessed by JavaScript (prevents XSS)
+      secure: process.env.NODE_ENV === 'production', // HTTPS only in production
+      sameSite: 'strict',  // CSRF protection
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      path: '/api/auth'    // Only sent to auth endpoints
+    });
+
+    return {
+      success: true,
+      accessToken,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        office_id: user.office_id
+      }
+    };
+  }
+
+  @Public()
+  @Post('refresh')
+  async refresh(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response
+  ) {
+    // Get refresh token from HttpOnly cookie
+    const refreshToken = req.cookies['refresh_token'];
+
+    if (!refreshToken) {
+      throw new UnauthorizedException('No refresh token provided');
+    }
+
+    // Generate new tokens
+    const { accessToken, refreshToken: newRefreshToken } = await this.authService.refreshTokens(
+      refreshToken,
+      {
+        userAgent: req.headers['user-agent'],
+        ip: req.ip
+      }
+    );
+
+    // Set new refresh token in cookie (rotation)
+    res.cookie('refresh_token', newRefreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/api/auth'
+    });
+
+    return {
+      success: true,
+      accessToken
+    };
+  }
+
+  @Post('logout')
+  @UseGuards(JwtAuthGuard)
+  async logout(
+    @Req() req: any,
+    @Res({ passthrough: true }) res: Response
+  ) {
+    // Revoke all refresh tokens for this user
+    await this.authService.revokeAllUserTokens(req.user.id);
+
+    // Clear cookie
+    res.clearCookie('refresh_token', { path: '/api/auth' });
+
+    return {
+      success: true,
+      message: 'تم تسجيل الخروج بنجاح'
+    };
+  }
+
+  @Get('profile')
+  @UseGuards(JwtAuthGuard)
+  async getProfile(@Req() req: any) {
+    return {
+      user: req.user
+    };
+  }
+}
+```
+
+**4. Frontend: Axios Interceptor (Silent Token Refresh):**
+
+```typescript
+// Web/src/lib/axios.ts
+import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
+
+const api = axios.create({
+  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001',
+  withCredentials: true, // CRITICAL: Send HttpOnly cookies
+  timeout: 30000
+});
+
+// Track if refresh is in progress to avoid multiple simultaneous refreshes
+let isRefreshing = false;
+let refreshSubscribers: ((token: string) => void)[] = [];
+
+/**
+ * Subscribe to token refresh completion
+ */
+function subscribeTokenRefresh(callback: (token: string) => void) {
+  refreshSubscribers.push(callback);
+}
+
+/**
+ * Notify all subscribers when new token arrives
+ */
+function onTokenRefreshed(token: string) {
+  refreshSubscribers.forEach(callback => callback(token));
+  refreshSubscribers = [];
+}
+
+// Request Interceptor: Attach access token
+api.interceptors.request.use(
+  (config: InternalAxiosRequestConfig) => {
+    const accessToken = localStorage.getItem('accessToken');
+    
+    if (accessToken && config.headers) {
+      config.headers.Authorization = `Bearer ${accessToken}`;
+    }
+
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// Response Interceptor: Handle 401 with silent refresh
+api.interceptors.response.use(
+  (response) => response,
+  async (error: AxiosError) => {
+    const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+
+    // Check if error is 401 and we haven't retried yet
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      
+      // Special case: If the failing request is /auth/refresh itself, don't retry
+      if (originalRequest.url?.includes('/auth/refresh')) {
+        // Refresh token is invalid, redirect to login
+        localStorage.removeItem('accessToken');
+        if (typeof window !== 'undefined') {
+          window.location.href = '/login';
+        }
+        return Promise.reject(error);
+      }
+
+      // If refresh is already in progress, queue this request
+      if (isRefreshing) {
+        return new Promise((resolve) => {
+          subscribeTokenRefresh((token: string) => {
+            if (originalRequest.headers) {
+              originalRequest.headers.Authorization = `Bearer ${token}`;
+            }
+            resolve(api(originalRequest));
+          });
+        });
+      }
+
+      // Mark as retrying to prevent infinite loops
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      try {
+        // Attempt to refresh the token
+        const { data } = await axios.post(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/auth/refresh`,
+          {},
+          { withCredentials: true } // Send HttpOnly cookie
+        );
+
+        const newAccessToken = data.accessToken;
+
+        // Store new access token
+        localStorage.setItem('accessToken', newAccessToken);
+
+        // Update Authorization header for original request
+        if (originalRequest.headers) {
+          originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+        }
+
+        // Notify all queued requests
+        onTokenRefreshed(newAccessToken);
+
+        isRefreshing = false;
+
+        // Retry original request
+        return api(originalRequest);
+
+      } catch (refreshError) {
+        // Refresh failed - user needs to login again
+        isRefreshing = false;
+        refreshSubscribers = [];
+
+        localStorage.removeItem('accessToken');
+        
+        if (typeof window !== 'undefined') {
+          window.location.href = '/login';
+        }
+
+        return Promise.reject(refreshError);
+      }
+    }
+
+    // For other errors, just reject
+    return Promise.reject(error);
+  }
+);
+
+export default api;
+```
+
+**5. Frontend: Login Flow:**
+
+```typescript
+// Web/src/lib/api/auth.ts
+import api from '../axios';
+
+export const authApi = {
+  login: async (phone: string, password: string) => {
+    const { data } = await api.post('/api/auth/login', { phone, password });
+    
+    // Store access token in localStorage
+    localStorage.setItem('accessToken', data.accessToken);
+    
+    return data;
+  },
+
+  logout: async () => {
+    await api.post('/api/auth/logout');
+    localStorage.removeItem('accessToken');
+  },
+
+  getProfile: async () => {
+    const { data } = await api.get('/api/auth/profile');
+    return data;
+  }
+};
+```
+
+```typescript
+// Web/src/app/login/page.tsx
+'use client';
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { authApi } from '@/lib/api/auth';
+import { useAuthStore } from '@/store/authStore';
+
+export default function LoginPage() {
+  const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const router = useRouter();
+  const { setAuth } = useAuthStore();
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      const data = await authApi.login(phone, password);
+      
+      // Update Zustand store
+      setAuth(data.user, data.accessToken);
+
+      // Redirect to dashboard
+      router.push('/dashboard');
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'فشل تسجيل الدخول');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-100">
+      <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
+        <h2 className="text-2xl font-bold mb-6 text-center">تسجيل الدخول</h2>
+        
+        <form onSubmit={handleLogin} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-2">رقم الهاتف</label>
+            <input
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              className="w-full border rounded-lg px-4 py-2"
+              placeholder="05xxxxxxxx"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">كلمة المرور</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full border rounded-lg px-4 py-2"
+              required
+            />
+          </div>
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+              {error}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-400"
+          >
+            {loading ? 'جاري تسجيل الدخول...' : 'تسجيل الدخول'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+```
+
+---
+
+### 4.3 معمارية Backend (NestJS Architecture)
+
+#### 4.3.1 Module Structure
+
+**النظرية (Theory - Why):**
+
+NestJS يستخدم **Modular Architecture** لتحقيق:
+1. **Separation of Concerns:** كل module مستقل
+2. **Dependency Injection:** سهولة الاختبار والصيانة
+3. **Code Reusability:** Shared modules
+4. **Scalability:** سهولة التحويل لـ Microservices
+
+**المثال (Example - What):**
+
+```
+PropertiesModule
+├── PropertiesController (HTTP Layer)
+├── PropertiesService (Business Logic)
+├── PropertiesRepository (Data Access - optional)
+└── DTOs (Data Transfer Objects)
+```
+
+**المساعدة/الكود (Aid/Code - How):**
+
+**Module Definition:**
+
+```typescript
+// api/src/properties/properties.module.ts
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { PropertiesController } from './properties.controller';
+import { PropertiesService } from './properties.service';
+import { Property } from './entities/property.entity';
+import { SupabaseModule } from '../supabase/supabase.module';
+import { CacheModule } from '@nestjs/cache-manager';
+import * as redisStore from 'cache-manager-redis-store';
+
+@Module({
+  imports: [
+    TypeOrmModule.forFeature([Property]),
+    SupabaseModule,
+    CacheModule.register({
+      store: redisStore,
+      host: process.env.REDIS_HOST || 'localhost',
+      port: parseInt(process.env.REDIS_PORT) || 6379,
+      ttl: 300 // 5 minutes default TTL
+    })
+  ],
+  controllers: [PropertiesController],
+  providers: [PropertiesService],
+  exports: [PropertiesService] // Allow other modules to use PropertiesService
+})
+export class PropertiesModule {}
+```
+
+---
+
+### 4.4 تصميم قاعدة البيانات (Database Design)
+
+#### 4.4.1 Performance-Critical Indexes
+
+**النظرية (Theory - Why):**
+
+Indexes تُحسّن أداء الـ queries بشكل كبير ولكن:
+- **Pros:** Query speed improvement (10x-1000x faster)
+- **Cons:** Slower writes, increased storage
+
+**القاعدة:** Index كل foreign key، كل column في WHERE clause المتكررة، وكل column في ORDER BY.
+
+**المساعدة/الكود (Aid/Code - How):**
+
+**Top 5 Most Critical Indexes:**
+
+```sql
+-- ✅ Index 1: Properties by office (most frequent query)
+-- Used in: Every properties list/search query
+CREATE INDEX idx_properties_office_active 
+ON properties(office_id, deleted_at) 
+WHERE deleted_at IS NULL;
+
+-- Performance impact: ~100x faster
+-- Query example: SELECT * FROM properties WHERE office_id = ? AND deleted_at IS NULL
+
+-- ✅ Index 2: Properties search (full-text search)
+CREATE INDEX idx_properties_search 
+ON properties USING gin(to_tsvector('arabic', title || ' ' || COALESCE(description, '')));
+
+-- Usage:
+SELECT * FROM properties 
+WHERE to_tsvector('arabic', title || ' ' || description) @@ plainto_tsquery('arabic', 'فيلا رياض');
+
+-- ✅ Index 3: Customers by office with phone lookup
+CREATE INDEX idx_customers_office_phone 
+ON customers(office_id, phone);
+
+-- Performance impact: ~50x faster for phone searches
+-- Query example: SELECT * FROM customers WHERE office_id = ? AND phone = ?
+
+-- ✅ Index 4: Rental payments due date (for notifications)
+CREATE INDEX idx_payments_due 
+ON rental_payments(office_id, due_date, status) 
+WHERE status IN ('pending', 'overdue');
+
+-- Usage: Find overdue payments
+SELECT * FROM rental_payments 
+WHERE office_id = ? 
+  AND due_date < NOW() 
+  AND status = 'pending';
+
+-- ✅ Index 5: Appointments by date range (calendar queries)
+CREATE INDEX idx_appointments_schedule 
+ON appointments(office_id, scheduled_at) 
+WHERE deleted_at IS NULL;
+
+-- Usage: Get appointments for a specific week
+SELECT * FROM appointments 
+WHERE office_id = ? 
+  AND scheduled_at BETWEEN ? AND ?
+  AND deleted_at IS NULL
+ORDER BY scheduled_at;
+```
+
+**Composite Index Strategy:**
+
+```sql
+-- Rule: Order matters! Put most selective column first
+-- ✅ GOOD: office_id first (high selectivity)
+CREATE INDEX idx_contracts_office_status ON rental_contracts(office_id, status);
+
+-- ❌ BAD: status first (low selectivity - only 3-4 values)
+CREATE INDEX idx_contracts_status_office ON rental_contracts(status, office_id);
+
+-- Partial Index for active records only (saves space)
+CREATE INDEX idx_users_active_office 
+ON user_permissions(office_id, role) 
+WHERE is_active = true AND deleted_at IS NULL;
+```
+
+---
+
+### 4.5 محرك التحليلات الفورية (Real-Time Analytics Engine)
+
+#### 4.5.1 حل الملاحظات #1, #2, #7: Dashboard Analytics Architecture
+
+**النظرية (Theory - Why):**
+
+**المشكلة:** "البيانات التحليلية في الداشبورد بيانات وهمية"
+
+**السبب الجذري:**
+الـ Dashboard يستخدم mock data بدلاً من بيانات حقيقية من قاعدة البيانات.
+
+**الحل المعماري:**
+استخدام **Materialized Views + Incremental Refresh** لتحقيق:
+1. **Performance:** Pre-computed aggregations
+2. **Freshness:** Refresh every 5 minutes via cron
+3. **Flexibility:** Dynamic filters via QueryBuilder
+
+**OLTP vs. OLAP:**
+- **OLTP (Online Transaction Processing):** Optimized for writes (properties, contracts)
+- **OLAP (Online Analytical Processing):** Optimized for reads (dashboards, reports)
+
+**الحل:** Hybrid approach - OLTP tables + OLAP materialized views
+
+**المثال (Example - What):**
+
+**Dashboard Metrics:**
+1. Properties by Status (for sale, rented, available)
+2. Monthly Revenue (last 12 months)
+3. Active Contracts count
+4. Pending Payments count
+5. Maintenance Requests by Status
+
+**المساعدة/الكود (Aid/Code - How):**
+
+**1. Materialized Views (Pre-computed Aggregations):**
+
+```sql
+-- Materialized View 1: Properties by Status per Office
+CREATE MATERIALIZED VIEW mv_properties_by_status AS
+SELECT 
+  office_id,
+  status,
+  COUNT(*) as property_count,
+  AVG(price) as avg_price,
+  SUM(CASE WHEN listing_type = 'sale' THEN 1 ELSE 0 END) as for_sale_count,
+  SUM(CASE WHEN listing_type = 'rent' THEN 1 ELSE 0 END) as for_rent_count,
+  NOW() as last_updated
+FROM properties
+WHERE deleted_at IS NULL
+GROUP BY office_id, status;
+
+-- Index for fast lookups
+CREATE UNIQUE INDEX idx_mv_props_office_status 
+ON mv_properties_by_status(office_id, status);
+
+-- Refresh function (call every 5 minutes)
+CREATE OR REPLACE FUNCTION refresh_properties_stats()
+RETURNS void AS $$
+BEGIN
+  REFRESH MATERIALIZED VIEW CONCURRENTLY mv_properties_by_status;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Materialized View 2: Monthly Revenue per Office
+CREATE MATERIALIZED VIEW mv_monthly_revenue AS
+SELECT 
+  office_id,
+  DATE_TRUNC('month', payment_date) as month,
+  SUM(amount) as total_revenue,
+  COUNT(*) as payment_count,
+  AVG(amount) as avg_payment,
+  NOW() as last_updated
+FROM rental_payments
+WHERE status = 'paid'
+  AND payment_date IS NOT NULL
+GROUP BY office_id, DATE_TRUNC('month', payment_date);
+
+CREATE UNIQUE INDEX idx_mv_revenue_office_month 
+ON mv_monthly_revenue(office_id, month);
+
+-- Materialized View 3: Contract Statistics
+CREATE MATERIALIZED VIEW mv_contract_stats AS
+SELECT 
+  office_id,
+  status,
+  COUNT(*) as contract_count,
+  SUM(monthly_rent) as total_monthly_rent,
+  AVG(EXTRACT(EPOCH FROM (end_date - start_date)) / 86400) as avg_duration_days,
+  NOW() as last_updated
+FROM rental_contracts
+WHERE deleted_at IS NULL
+GROUP BY office_id, status;
+
+CREATE UNIQUE INDEX idx_mv_contracts_office_status 
+ON mv_contract_stats(office_id, status);
+```
+
+**2. Backend Service (Analytics with Caching):**
+
+```typescript
+// api/src/analytics/analytics.service.ts
+import { Injectable, Inject } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
+import { SupabaseService } from '../supabase/supabase.service';
+
+@Injectable()
+export class AnalyticsService {
+  constructor(
+    private readonly supabaseService: SupabaseService,
+    @Inject(CACHE_MANAGER) private cacheManager: Cache
+  ) {}
+
+  /**
+   * Get Dashboard Metrics
+   * حل الملاحظة #1: استخدام بيانات حقيقية من قاعدة البيانات
+   */
+  async getDashboard(officeId: string): Promise<any> {
+    // Try cache first (5 minute TTL)
+    const cacheKey = `dashboard:${officeId}`;
+    const cached = await this.cacheManager.get(cacheKey);
+    
+    if (cached) {
+      return cached;
+    }
+
+    const supabase = this.supabaseService.getClient();
+
+    // Run all queries in parallel for performance
+    const [
+      propertiesStats,
+      revenueStats,
+      contractsStats,
+      paymentsStats,
+      maintenanceStats
+    ] = await Promise.all([
+      // 1. Properties by Status (from materialized view)
+      supabase
+        .from('mv_properties_by_status')
+        .select('*')
+        .eq('office_id', officeId),
+
+      // 2. Monthly Revenue (last 12 months)
+      supabase
+        .from('mv_monthly_revenue')
+        .select('*')
+        .eq('office_id', officeId)
+        .gte('month', new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString())
+        .order('month', { ascending: true }),
+
+      // 3. Contracts Stats
+      supabase
+        .from('mv_contract_stats')
+        .select('*')
+        .eq('office_id', officeId),
+
+      // 4. Pending Payments
+      supabase
+        .from('rental_payments')
+        .select('*', { count: 'exact', head: true })
+        .eq('office_id', officeId)
+        .eq('status', 'pending')
+        .lte('due_date', new Date().toISOString()),
+
+      // 5. Maintenance Requests by Status
+      supabase
+        .rpc('get_maintenance_by_status', { p_office_id: officeId })
+    ]);
+
+    const dashboard = {
+      properties: {
+        total: propertiesStats.data?.reduce((sum, s) => sum + s.property_count, 0) || 0,
+        byStatus: propertiesStats.data || [],
+        forSale: propertiesStats.data?.reduce((sum, s) => sum + s.for_sale_count, 0) || 0,
+        forRent: propertiesStats.data?.reduce((sum, s) => sum + s.for_rent_count, 0) || 0
+      },
+      revenue: {
+        lastMonth: revenueStats.data?.[revenueStats.data.length - 1]?.total_revenue || 0,
+        last12Months: revenueStats.data || [],
+        total: revenueStats.data?.reduce((sum, r) => sum + parseFloat(r.total_revenue), 0) || 0
+      },
+      contracts: {
+        total: contractsStats.data?.reduce((sum, c) => sum + c.contract_count, 0) || 0,
+        active: contractsStats.data?.find(c => c.status === 'active')?.contract_count || 0,
+        byStatus: contractsStats.data || []
+      },
+      payments: {
+        pending: paymentsStats.count || 0
+      },
+      maintenance: {
+        byStatus: maintenanceStats.data || []
+      },
+      lastUpdated: new Date().toISOString()
+    };
+
+    // Cache for 5 minutes
+    await this.cacheManager.set(cacheKey, dashboard, 300);
+
+    return dashboard;
+  }
+
+  /**
+   * حل الملاحظة #2: Dynamic Analytics with Filters
+   */
+  async getAdvancedAnalytics(
+    officeId: string,
+    filters: {
+      module: 'properties' | 'contracts' | 'customers' | 'revenue';
+      groupBy?: string; // 'city', 'type', 'month', 'status'
+      dateRange?: { from: string; to: string };
+      customFields?: string[];
+    }
+  ): Promise<any> {
+    const supabase = this.supabaseService.getClient();
+
+    switch (filters.module) {
+      case 'properties':
+        return this.getPropertiesAnalytics(officeId, filters);
+      
+      case 'contracts':
+        return this.getContractsAnalytics(officeId, filters);
+      
+      case 'revenue':
+        return this.getRevenueAnalytics(officeId, filters);
+      
+      default:
+        throw new BadRequestException('Invalid module');
+    }
+  }
+
+  /**
+   * Dynamic Properties Analytics
+   */
+  private async getPropertiesAnalytics(
+    officeId: string,
+    filters: any
+  ): Promise<any> {
+    const supabase = this.supabaseService.getClient();
+
+    // Build dynamic query using Supabase
+    let query = supabase
+      .from('properties')
+      .select('*')
+      .eq('office_id', officeId)
+      .is('deleted_at', null);
+
+    // Apply date range filter
+    if (filters.dateRange) {
+      query = query
+        .gte('created_at', filters.dateRange.from)
+        .lte('created_at', filters.dateRange.to);
+    }
+
+    const { data, error } = await query;
+
+    if (error) throw error;
+
+    // Group by dynamically
+    if (filters.groupBy) {
+      return this.groupByField(data, filters.groupBy);
+    }
+
+    return data;
+  }
+
+  /**
+   * Helper: Group data by field
+   */
+  private groupByField(data: any[], field: string): any {
+    const grouped = data.reduce((acc, item) => {
+      const key = item[field] || 'Unknown';
+      if (!acc[key]) {
+        acc[key] = {
+          count: 0,
+          items: []
+        };
+      }
+      acc[key].count++;
+      acc[key].items.push(item);
+      return acc;
+    }, {});
+
+    return Object.keys(grouped).map(key => ({
+      [field]: key,
+      count: grouped[key].count,
+      percentage: (grouped[key].count / data.length) * 100
+    }));
+  }
+
+  /**
+   * حل الملاحظة #7: Market Intelligence Integration
+   */
+  async getMarketIntelligence(officeId: string, city: string): Promise<any> {
+    const supabase = this.supabaseService.getClient();
+
+    // 1. Average price per sqm in the city
+    const { data: avgPriceData } = await supabase
+      .rpc('get_avg_price_per_sqm', {
+        p_office_id: officeId,
+        p_city: city
+      });
+
+    // 2. Vacancy rate
+    const { data: vacancyData } = await supabase
+      .rpc('get_vacancy_rate', {
+        p_office_id: officeId,
+        p_city: city
+      });
+
+    // 3. Average time to rent
+    const { data: timeToRentData } = await supabase
+      .rpc('get_avg_time_to_rent', {
+        p_office_id: officeId,
+        p_city: city
+      });
+
+    return {
+      city,
+      avgPricePerSqm: avgPriceData,
+      vacancyRate: vacancyData,
+      avgTimeToRent: timeToRentData,
+      insights: this.generateMarketInsights(avgPriceData, vacancyData, timeToRentData)
+    };
+  }
+
+  private generateMarketInsights(avgPrice: any, vacancy: any, timeToRent: any): string[] {
+    const insights = [];
+
+    if (vacancy > 0.15) {
+      insights.push('السوق لديه نسبة شغور عالية - فرصة للمستأجرين للتفاوض');
+    }
+
+    if (timeToRent > 45) {
+      insights.push('متوسط وقت التأجير طويل - قد تحتاج إلى تحسين التسويق');
+    }
+
+    if (avgPrice < 2500) {
+      insights.push('الأسعار منخفضة نسبياً - فرصة استثمارية جيدة');
+    }
+
+    return insights;
+  }
+}
+```
+
+**3. SQL Stored Procedures (للتحليلات المعقدة):**
+
+```sql
+-- Stored Procedure: Average Price per Square Meter
+CREATE OR REPLACE FUNCTION get_avg_price_per_sqm(
+  p_office_id UUID,
+  p_city VARCHAR
+)
+RETURNS TABLE (
+  property_type VARCHAR,
+  avg_price_per_sqm DECIMAL,
+  sample_size INT
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    p.property_type,
+    AVG(p.price / NULLIF(p.area, 0)) as avg_price_per_sqm,
+    COUNT(*)::INT as sample_size
+  FROM properties p
+  WHERE p.office_id = p_office_id
+    AND p.city = p_city
+    AND p.area > 0
+    AND p.price > 0
+    AND p.deleted_at IS NULL
+  GROUP BY p.property_type;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Stored Procedure: Vacancy Rate
+CREATE OR REPLACE FUNCTION get_vacancy_rate(
+  p_office_id UUID,
+  p_city VARCHAR
+)
+RETURNS DECIMAL AS $$
+DECLARE
+  total_properties INT;
+  vacant_properties INT;
+BEGIN
+  SELECT COUNT(*) INTO total_properties
+  FROM properties
+  WHERE office_id = p_office_id
+    AND city = p_city
+    AND listing_type = 'rent'
+    AND deleted_at IS NULL;
+
+  SELECT COUNT(*) INTO vacant_properties
+  FROM properties
+  WHERE office_id = p_office_id
+    AND city = p_city
+    AND listing_type = 'rent'
+    AND status = 'available'
+    AND deleted_at IS NULL;
+
+  IF total_properties = 0 THEN
+    RETURN 0;
+  END IF;
+
+  RETURN (vacant_properties::DECIMAL / total_properties);
+END;
+$$ LANGUAGE plpgsql;
+
+-- Stored Procedure: Average Time to Rent
+CREATE OR REPLACE FUNCTION get_avg_time_to_rent(
+  p_office_id UUID,
+  p_city VARCHAR
+)
+RETURNS DECIMAL AS $$
+BEGIN
+  RETURN (
+    SELECT AVG(EXTRACT(EPOCH FROM (rc.start_date - p.created_at)) / 86400)
+    FROM rental_contracts rc
+    JOIN properties p ON rc.property_id = p.id
+    WHERE p.office_id = p_office_id
+      AND p.city = p_city
+      AND rc.created_at >= NOW() - INTERVAL '12 months'
+      AND rc.deleted_at IS NULL
+  );
+END;
+$$ LANGUAGE plpgsql;
+```
+
+**4. Frontend: Dashboard Component:**
+
+```typescript
+// Web/src/app/dashboard/page.tsx
+'use client';
+
+import { useState, useEffect } from 'react';
+import { analyticsApi } from '@/lib/api/analytics';
+import { useAuthStore } from '@/store/authStore';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+
+export default function DashboardPage() {
+  const [dashboard, setDashboard] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const user = useAuthStore(state => state.user);
+
+  useEffect(() => {
+    fetchDashboard();
+  }, []);
+
+  const fetchDashboard = async () => {
+    try {
+      const data = await analyticsApi.getDashboard();
+      setDashboard(data);
+    } catch (error) {
+      console.error('Error fetching dashboard:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return <div className="p-6">جاري تحميل البيانات...</div>;
+  }
+
+  return (
+    <div className="p-6 space-y-6">
+      <h1 className="text-3xl font-bold">لوحة التحكم</h1>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="bg-white border rounded-lg p-6">
+          <h3 className="text-sm text-gray-600 mb-2">إجمالي العقارات</h3>
+          <p className="text-3xl font-bold text-blue-600">{dashboard.properties.total}</p>
+          <p className="text-xs text-gray-500 mt-1">
+            {dashboard.properties.forSale} للبيع • {dashboard.properties.forRent} للإيجار
+          </p>
+        </div>
+
+        <div className="bg-white border rounded-lg p-6">
+          <h3 className="text-sm text-gray-600 mb-2">الإيرادات الشهرية</h3>
+          <p className="text-3xl font-bold text-green-600">
+            {dashboard.revenue.lastMonth.toLocaleString()} ريال
+          </p>
+          <p className="text-xs text-gray-500 mt-1">الشهر الحالي</p>
+        </div>
+
+        <div className="bg-white border rounded-lg p-6">
+          <h3 className="text-sm text-gray-600 mb-2">العقود النشطة</h3>
+          <p className="text-3xl font-bold text-purple-600">{dashboard.contracts.active}</p>
+          <p className="text-xs text-gray-500 mt-1">من أصل {dashboard.contracts.total} عقد</p>
+        </div>
+
+        <div className="bg-white border rounded-lg p-6">
+          <h3 className="text-sm text-gray-600 mb-2">المدفوعات المعلقة</h3>
+          <p className="text-3xl font-bold text-orange-600">{dashboard.payments.pending}</p>
+          <p className="text-xs text-gray-500 mt-1">تحتاج متابعة</p>
+        </div>
+      </div>
+
+      {/* Revenue Chart */}
+      <div className="bg-white border rounded-lg p-6">
+        <h2 className="text-xl font-semibold mb-4">الإيرادات - آخر 12 شهر</h2>
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={dashboard.revenue.last12Months}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis 
+              dataKey="month" 
+              tickFormatter={(value) => new Date(value).toLocaleDateString('ar-SA', { month: 'short' })}
+            />
+            <YAxis />
+            <Tooltip 
+              formatter={(value) => `${value.toLocaleString()} ريال`}
+              labelFormatter={(label) => new Date(label).toLocaleDateString('ar-SA', { month: 'long', year: 'numeric' })}
+            />
+            <Legend />
+            <Bar dataKey="total_revenue" fill="#3b82f6" name="الإيرادات" />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Properties by Status */}
+      <div className="bg-white border rounded-lg p-6">
+        <h2 className="text-xl font-semibold mb-4">العقارات حسب الحالة</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {dashboard.properties.byStatus.map((status: any) => (
+            <div key={status.status} className="border rounded-lg p-4 text-center">
+              <p className="text-2xl font-bold text-blue-600">{status.property_count}</p>
+              <p className="text-sm text-gray-600 mt-1">{status.status}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <p className="text-xs text-gray-500 text-center">
+        آخر تحديث: {new Date(dashboard.lastUpdated).toLocaleString('ar-SA')}
+      </p>
+    </div>
+  );
+}
+```
+
+---
+
+### 4.6 الأداء وقابلية التوسع (Performance & Scalability)
+
+#### 4.6.1 Redis Caching Strategy
+
+**النظرية (Theory - Why):**
+
+**Caching Layers:**
+1. **Client-side:** Browser cache, React Query
+2. **CDN:** CloudFlare for static assets
+3. **Application:** Redis for API responses
+4. **Database:** PostgreSQL query cache
+
+**Redis Key Strategy:**
+- **Pattern:** `{module}:{identifier}:{params}`
+- **TTL:** Based on data volatility
+
+**المساعدة/الكود (Aid/Code - How):**
+
+**Redis Key Patterns:**
+
+```typescript
+// Cache Keys Convention
+const CACHE_KEYS = {
+  // Dashboard: 5 min TTL
+  dashboard: (officeId: string) => `dashboard:${officeId}`,
+  
+  // Properties list: 1 min TTL (frequently updated)
+  propertiesList: (officeId: string, page: number, filters: string) => 
+    `properties:${officeId}:p${page}:${filters}`,
+  
+  // Property detail: 10 min TTL
+  propertyDetail: (officeId: string, propertyId: string) => 
+    `property:${officeId}:${propertyId}`,
+  
+  // Analytics: 5 min TTL
+  analytics: (officeId: string, type: string, date: string) => 
+    `analytics:${officeId}:${type}:${date}`,
+  
+  // User permissions: 30 min TTL (rarely changes)
+  userPermissions: (userId: string) => 
+    `user:${userId}:permissions`
+};
+
+// Cache Invalidation Patterns
+const CACHE_INVALIDATE = {
+  // When property is created/updated/deleted
+  onPropertyChange: (officeId: string) => [
+    `dashboard:${officeId}`,
+    `properties:${officeId}:*`,
+    `analytics:${officeId}:properties:*`
+  ],
+  
+  // When payment is recorded
+  onPaymentChange: (officeId: string) => [
+    `dashboard:${officeId}`,
+    `analytics:${officeId}:revenue:*`,
+    `analytics:${officeId}:payments:*`
+  ]
+};
+```
+
+**Caching Service:**
+
+```typescript
+// api/src/common/services/cache.service.ts
+import { Injectable, Inject } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
+
+@Injectable()
+export class CacheService {
+  constructor(
+    @Inject(CACHE_MANAGER) private cacheManager: Cache
+  ) {}
+
+  /**
+   * Get from cache or execute function
+   */
+  async getOrSet<T>(
+    key: string,
+    fn: () => Promise<T>,
+    ttl: number = 300
+  ): Promise<T> {
+    // Try cache first
+    const cached = await this.cacheManager.get<T>(key);
+    if (cached) {
+      return cached;
+    }
+
+    // Execute function
+    const result = await fn();
+
+    // Store in cache
+    await this.cacheManager.set(key, result, ttl);
+
+    return result;
+  }
+
+  /**
+   * Invalidate cache by pattern
+   */
+  async invalidatePattern(pattern: string): Promise<void> {
+    const keys = await this.cacheManager.store.keys(pattern);
+    
+    for (const key of keys) {
+      await this.cacheManager.del(key);
+    }
+  }
+
+  /**
+   * Invalidate multiple keys
+   */
+  async invalidateKeys(keys: string[]): Promise<void> {
+    for (const key of keys) {
+      await this.cacheManager.del(key);
+    }
+  }
+}
+```
+
+**Usage in Service:**
+
+```typescript
+// api/src/properties/properties.service.ts
+import { Injectable } from '@nestjs/common';
+import { CacheService } from '../common/services/cache.service';
+
+@Injectable()
+export class PropertiesService {
+  constructor(
+    private readonly cacheService: CacheService,
+    private readonly supabaseService: SupabaseService
+  ) {}
+
+  async findAll(officeId: string, filters: any): Promise<any> {
+    const cacheKey = CACHE_KEYS.propertiesList(
+      officeId,
+      filters.page || 1,
+      JSON.stringify(filters)
+    );
+
+    return this.cacheService.getOrSet(
+      cacheKey,
+      async () => {
+        // Actual database query
+        const supabase = this.supabaseService.getClient();
+        const { data } = await supabase
+          .from('properties')
+          .select('*')
+          .eq('office_id', officeId)
+          .is('deleted_at', null);
+        
+        return data;
+      },
+      60 // 1 minute TTL
+    );
+  }
+
+  async create(officeId: string, userId: string, dto: CreatePropertyDto): Promise<any> {
+    // Create property
+    const property = await this.actuallyCreateProperty(officeId, userId, dto);
+
+    // Invalidate related caches
+    await this.cacheService.invalidateKeys(
+      CACHE_INVALIDATE.onPropertyChange(officeId)
+    );
+
+    return property;
+  }
+}
+```
+
+---
+
+### 4.7 معمارية واجهة المستخدم (Frontend Architecture)
+
+#### 4.7.1 حل الملاحظة #15, #16, #17, #20, #21: Settings Module
+
+**النظرية (Theory - Why):**
+
+**المشكلة:** "في الاعدادات في المظهر يجب توفيرها، الإشعارات، الموظفين لا تعمل"
+
+**الحل المعماري:**
+استخدام **Feature-Based Folder Structure** مع **Mobile-First Design**:
+
+1. **Modularity:** كل feature في folder منفصل
+2. **Reusability:** Shared components
+3. **Scalability:** سهولة إضافة features جديدة
+
+**المساعدة/الكود (Aid/Code - How):**
+
+**Settings Module Structure:**
+
+```
+Web/src/app/dashboard/settings/
+├── layout.tsx                    # Settings layout with sidebar
+├── page.tsx                      # Overview/Profile page
+├── appearance/
+│   └── page.tsx                  # حل الملاحظة #15
+├── notifications/
+│   └── page.tsx                  # حل الملاحظة #16
+├── staff/
+│   └── page.tsx                  # حل الملاحظة #17
+├── integrations/
+│   └── page.tsx                  # حل الملاحظة #21
+├── security/
+│   └── page.tsx
+└── components/
+    ├── SettingsSidebar.tsx       # حل الملاحظة #20 (responsive)
+    └── SettingsCard.tsx
+```
+
+**1. Settings Layout (with Responsive Sidebar):**
+
+```typescript
+// Web/src/app/dashboard/settings/layout.tsx
+'use client';
+
+import { useState } from 'react';
+import { usePathname } from 'next/navigation';
+import Link from 'next/link';
+import { 
+  Palette, Bell, Users, Link as LinkIcon, 
+  Shield, ChevronLeft, Menu, X 
+} from 'lucide-react';
+
+const settingsNav = [
+  { href: '/dashboard/settings', label: 'الملف الشخصي', icon: Users },
+  { href: '/dashboard/settings/appearance', label: 'المظهر', icon: Palette },
+  { href: '/dashboard/settings/notifications', label: 'الإشعارات', icon: Bell },
+  { href: '/dashboard/settings/staff', label: 'الموظفين', icon: Users },
+  { href: '/dashboard/settings/integrations', label: 'التكاملات', icon: LinkIcon },
+  { href: '/dashboard/settings/security', label: 'الأمان', icon: Shield }
+];
+
+export default function SettingsLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  return (
+    <div className="flex h-screen bg-gray-50">
+      {/* Mobile Sidebar Overlay */}
+      {sidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Sidebar - حل الملاحظة #20: Responsive */}
+      <aside className={`
+        fixed lg:static inset-y-0 right-0 z-50
+        w-64 bg-white border-l border-gray-200
+        transition-transform duration-300 ease-in-out
+        lg:translate-x-0
+        ${sidebarOpen ? 'translate-x-0' : 'translate-x-full'}
+      `}>
+        <div className="p-6 flex items-center justify-between border-b">
+          <h2 className="text-xl font-bold">الإعدادات</h2>
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="lg:hidden p-2 hover:bg-gray-100 rounded-lg"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <nav className="p-4 space-y-1 overflow-y-auto h-[calc(100vh-80px)]">
+          {settingsNav.map((item) => {
+            const Icon = item.icon;
+            const isActive = pathname === item.href;
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setSidebarOpen(false)}
+                className={`
+                  flex items-center gap-3 px-4 py-3 rounded-lg transition
+                  ${isActive 
+                    ? 'bg-blue-50 text-blue-700 font-semibold' 
+                    : 'text-gray-700 hover:bg-gray-100'
+                  }
+                `}
+              >
+                <Icon className="w-5 h-5" />
+                <span>{item.label}</span>
+                <ChevronLeft className="w-4 h-4 mr-auto" />
+              </Link>
+            );
+          })}
+        </nav>
+      </aside>
+
+      {/* Main Content */}
+      <main className="flex-1 overflow-y-auto">
+        {/* Mobile Header */}
+        <div className="lg:hidden bg-white border-b p-4 flex items-center justify-between">
+          <h1 className="text-xl font-bold">الإعدادات</h1>
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="p-2 hover:bg-gray-100 rounded-lg"
+          >
+            <Menu className="w-6 h-6" />
+          </button>
+        </div>
+
+        <div className="p-6">
+          {children}
+        </div>
+      </main>
+    </div>
+  );
+}
+```
+
+**2. Appearance Settings (حل الملاحظة #15):**
+
+```typescript
+// Web/src/app/dashboard/settings/appearance/page.tsx
+'use client';
+
+import { useState } from 'react';
+import { useSettingsStore } from '@/store/settingsStore';
+import { Sun, Moon, Monitor } from 'lucide-react';
+
+export default function AppearanceSettings() {
+  const { theme, setTheme, fontSize, setFontSize, language } = useSettingsStore();
+
+  const themes = [
+    { value: 'light', label: 'فاتح', icon: Sun },
+    { value: 'dark', label: 'داكن', icon: Moon },
+    { value: 'system', label: 'تلقائي', icon: Monitor }
+  ];
+
+  const fontSizes = [
+    { value: 'small', label: 'صغير' },
+    { value: 'medium', label: 'متوسط' },
+    { value: 'large', label: 'كبير' }
+  ];
+
+  return (
+    <div className="max-w-2xl space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold mb-2">إعدادات المظهر</h1>
+        <p className="text-gray-600">
+          قم بتخصيص شكل التطبيق ليناسب تفضيلاتك
+        </p>
+      </div>
+
+      {/* Theme Selection */}
+      <div className="bg-white border rounded-lg p-6">
+        <h2 className="text-lg font-semibold mb-4">الثيم (Theme)</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {themes.map((themeOption) => {
+            const Icon = themeOption.icon;
+            const isSelected = theme === themeOption.value;
+
+            return (
+              <button
+                key={themeOption.value}
+                onClick={() => setTheme(themeOption.value as any)}
+                className={`
+                  p-6 border-2 rounded-lg flex flex-col items-center gap-3 transition
+                  ${isSelected 
+                    ? 'border-blue-500 bg-blue-50' 
+                    : 'border-gray-200 hover:border-blue-300'
+                  }
+                `}
+              >
+                <Icon className={`w-8 h-8 ${isSelected ? 'text-blue-600' : 'text-gray-600'}`} />
+                <span className="font-medium">{themeOption.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Font Size */}
+      <div className="bg-white border rounded-lg p-6">
+        <h2 className="text-lg font-semibold mb-4">حجم الخط</h2>
+        <div className="flex gap-3">
+          {fontSizes.map((size) => (
+            <button
+              key={size.value}
+              onClick={() => setFontSize(size.value as any)}
+              className={`
+                px-6 py-3 border-2 rounded-lg transition
+                ${fontSize === size.value 
+                  ? 'border-blue-500 bg-blue-50 text-blue-700 font-semibold' 
+                  : 'border-gray-200 hover:border-blue-300'
+                }
+              `}
+            >
+              {size.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Color Scheme */}
+      <div className="bg-white border rounded-lg p-6">
+        <h2 className="text-lg font-semibold mb-4">اللون الأساسي</h2>
+        <div className="grid grid-cols-4 sm:grid-cols-8 gap-3">
+          {['blue', 'green', 'purple', 'red', 'orange', 'pink', 'teal', 'indigo'].map((color) => (
+            <button
+              key={color}
+              className={`
+                w-12 h-12 rounded-full border-4 border-transparent
+                hover:border-gray-300 transition
+                bg-${color}-500
+              `}
+              onClick={() => {
+                // Update primary color
+                document.documentElement.style.setProperty('--primary-color', color);
+              }}
+            />
+          ))}
+        </div>
+      </div>
+
+      <button className="w-full sm:w-auto bg-blue-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-blue-700">
+        حفظ التغييرات
+      </button>
+    </div>
+  );
+}
+```
+
+**3. Notifications Settings (حل الملاحظة #16):**
+
+```typescript
+// Web/src/app/dashboard/settings/notifications/page.tsx
+'use client';
+
+import { useState } from 'react';
+import { Bell, Mail, MessageSquare, Smartphone } from 'lucide-react';
+
+export default function NotificationsSettings() {
+  const [settings, setSettings] = useState({
+    email: {
+      newLead: true,
+      paymentDue: true,
+      contractExpiring: true,
+      maintenanceRequest: false
+    },
+    push: {
+      newLead: true,
+      paymentDue: true,
+      contractExpiring: false,
+      maintenanceRequest: true
+    },
+    whatsapp: {
+      enabled: false,
+      phoneNumber: '',
+      newLead: false,
+      paymentDue: true,
+      contractExpiring: true,
+      maintenanceRequest: false
+    }
+  });
+
+  const notificationTypes = [
+    { key: 'newLead', label: 'عميل جديد', description: 'عندما يتم إضافة عميل محتمل جديد' },
+    { key: 'paymentDue', label: 'دفعة مستحقة', description: 'عندما يقترب موعد دفع الإيجار' },
+    { key: 'contractExpiring', label: 'عقد ينتهي قريباً', description: 'قبل 30 يوم من انتهاء العقد' },
+    { key: 'maintenanceRequest', label: 'طلب صيانة', description: 'عند إنشاء طلب صيانة جديد' }
+  ];
+
+  return (
+    <div className="max-w-3xl space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold mb-2">إعدادات الإشعارات</h1>
+        <p className="text-gray-600">
+          اختر كيفية تلقي الإشعارات الهامة
+        </p>
+      </div>
+
+      {/* Email Notifications */}
+      <div className="bg-white border rounded-lg p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <Mail className="w-6 h-6 text-blue-600" />
+          <h2 className="text-lg font-semibold">البريد الإلكتروني</h2>
+        </div>
+        <div className="space-y-3">
+          {notificationTypes.map((type) => (
+            <label key={type.key} className="flex items-start gap-3 p-3 hover:bg-gray-50 rounded-lg cursor-pointer">
+              <input
+                type="checkbox"
+                checked={settings.email[type.key]}
+                onChange={(e) => setSettings({
+                  ...settings,
+                  email: { ...settings.email, [type.key]: e.target.checked }
+                })}
+                className="mt-1 w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <div className="flex-1">
+                <p className="font-medium">{type.label}</p>
+                <p className="text-sm text-gray-600">{type.description}</p>
+              </div>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* Push Notifications */}
+      <div className="bg-white border rounded-lg p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <Bell className="w-6 h-6 text-green-600" />
+          <h2 className="text-lg font-semibold">إشعارات التطبيق</h2>
+        </div>
+        <div className="space-y-3">
+          {notificationTypes.map((type) => (
+            <label key={type.key} className="flex items-start gap-3 p-3 hover:bg-gray-50 rounded-lg cursor-pointer">
+              <input
+                type="checkbox"
+                checked={settings.push[type.key]}
+                onChange={(e) => setSettings({
+                  ...settings,
+                  push: { ...settings.push, [type.key]: e.target.checked }
+                })}
+                className="mt-1 w-5 h-5 rounded border-gray-300 text-green-600 focus:ring-green-500"
+              />
+              <div className="flex-1">
+                <p className="font-medium">{type.label}</p>
+                <p className="text-sm text-gray-600">{type.description}</p>
+              </div>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* WhatsApp Notifications - حل الملاحظة #16 */}
+      <div className="bg-white border rounded-lg p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <MessageSquare className="w-6 h-6 text-emerald-600" />
+          <h2 className="text-lg font-semibold">واتساب</h2>
+          <span className="mr-auto text-sm font-medium px-3 py-1 bg-blue-100 text-blue-700 rounded-full">
+            قيد التطوير
+          </span>
+        </div>
+        
+        <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+          <p className="text-sm text-amber-800">
+            <strong>ملاحظة:</strong> لتفعيل إشعارات الواتساب، يجب ربط حساب WhatsApp Business API.
+            يرجى الاتصال بمسؤول النظام للحصول على التعليمات التفصيلية.
+          </p>
+        </div>
+
+        <label className="flex items-center gap-3 mb-4">
+          <input
+            type="checkbox"
+            checked={settings.whatsapp.enabled}
+            onChange={(e) => setSettings({
+              ...settings,
+              whatsapp: { ...settings.whatsapp, enabled: e.target.checked }
+            })}
+            className="w-5 h-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+          />
+          <span className="font-medium">تفعيل إشعارات الواتساب</span>
+        </label>
+
+        {settings.whatsapp.enabled && (
+          <>
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-2">رقم الواتساب</label>
+              <input
+                type="tel"
+                value={settings.whatsapp.phoneNumber}
+                onChange={(e) => setSettings({
+                  ...settings,
+                  whatsapp: { ...settings.whatsapp, phoneNumber: e.target.value }
+                })}
+                placeholder="05xxxxxxxx"
+                className="w-full border rounded-lg px-4 py-2"
+              />
+            </div>
+
+            <div className="space-y-3">
+              {notificationTypes.map((type) => (
+                <label key={type.key} className="flex items-start gap-3 p-3 hover:bg-gray-50 rounded-lg cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={settings.whatsapp[type.key]}
+                    onChange={(e) => setSettings({
+                      ...settings,
+                      whatsapp: { ...settings.whatsapp, [type.key]: e.target.checked }
+                    })}
+                    className="mt-1 w-5 h-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                  />
+                  <div className="flex-1">
+                    <p className="font-medium">{type.label}</p>
+                    <p className="text-sm text-gray-600">{type.description}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+
+      <button className="w-full sm:w-auto bg-blue-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-blue-700">
+        حفظ التغييرات
+      </button>
+    </div>
+  );
+}
+```
+
+**4. Zustand Store للإعدادات:**
+
+```typescript
+// Web/src/store/settingsStore.ts
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+
+interface SettingsState {
+  // Appearance
+  theme: 'light' | 'dark' | 'system';
+  fontSize: 'small' | 'medium' | 'large';
+  language: 'ar' | 'en';
+  
+  // Notifications
+  notificationsEnabled: boolean;
+  emailNotifications: boolean;
+  pushNotifications: boolean;
+  whatsappNotifications: boolean;
+  
+  // Actions
+  setTheme: (theme: 'light' | 'dark' | 'system') => void;
+  setFontSize: (size: 'small' | 'medium' | 'large') => void;
+  setLanguage: (lang: 'ar' | 'en') => void;
+  toggleNotifications: () => void;
+}
+
+export const useSettingsStore = create<SettingsState>()(
+  persist(
+    (set) => ({
+      // Default values
+      theme: 'light',
+      fontSize: 'medium',
+      language: 'ar',
+      notificationsEnabled: true,
+      emailNotifications: true,
+      pushNotifications: true,
+      whatsappNotifications: false,
+
+      // Actions
+      setTheme: (theme) => {
+        set({ theme });
+        
+        // Apply theme to document
+        if (theme === 'dark') {
+          document.documentElement.classList.add('dark');
+        } else if (theme === 'light') {
+          document.documentElement.classList.remove('dark');
+        } else {
+          // System preference
+          const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          if (prefersDark) {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+          }
+        }
+      },
+
+      setFontSize: (fontSize) => {
+        set({ fontSize });
+        
+        // Apply font size to document
+        const fontSizeMap = {
+          small: '14px',
+          medium: '16px',
+          large: '18px'
+        };
+        document.documentElement.style.fontSize = fontSizeMap[fontSize];
+      },
+
+      setLanguage: (language) => {
+        set({ language });
+        document.documentElement.lang = language;
+        document.documentElement.dir = language === 'ar' ? 'rtl' : 'ltr';
+      },
+
+      toggleNotifications: () => set((state) => ({
+        notificationsEnabled: !state.notificationsEnabled
+      }))
+    }),
+    {
+      name: 'settings-storage' // localStorage key
+    }
+  )
+);
+```
+
+---
+
+## الملاحظات الختامية للجزء الرابع
+
+**ملخص النقاط الرئيسية:**
+
+1. **Authentication & Security (حل الملاحظة #3):**
+   - RefreshToken entity with rotation
+   - Axios interceptor for silent refresh
+   - HttpOnly cookies for security
+   - Token reuse detection
+
+2. **Database Performance:**
+   - 5 critical indexes defined
+   - Materialized views for analytics
+   - Composite index strategy
+   - Partial indexes for active records
+
+3. **Real-Time Analytics (حل الملاحظات #1, #2, #7):**
+   - Materialized views for pre-computed data
+   - Redis caching (5-minute TTL)
+   - Dynamic QueryBuilder for filters
+   - Market intelligence integration
+
+4. **Frontend Architecture (حل الملاحظات #13, #14, #15, #16, #17, #20, #21):**
+   - Complete Settings module structure
+   - Responsive sidebar (mobile-first)
+   - Zustand store for settings
+   - Favorites & Reports pages
+   - WhatsApp notifications setup guide
+
+5. **Performance & Scalability:**
+   - Redis key patterns defined
+   - Cache invalidation strategy
+   - CacheService for reusability
+
+---
+
+**الخطوة التالية:**
+هذا يكمل **PART IV: TECHNICAL VIEW**. النظام الآن لديه:
+- ✅ Part I: Executive & Investor View
+- ✅ Part II: Compliance & Legal View
+- ✅ Part III: Operational View
+- ✅ Part IV: Technical View
+
+**الوثيقة جاهزة للمطورين!**
+
+---
+
+**تاريخ التحديث:** 19 نوفمبر 2025
+**الإصدار:** 3.0 - Part IV
+**الحالة:** مكتمل ✓
+
+---
+
