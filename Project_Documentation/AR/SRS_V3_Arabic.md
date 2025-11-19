@@ -1064,3 +1064,3431 @@ Timeline:
 
 ---
 
+# **الجزء الثاني: النظرة التنظيمية والقانونية**
+## PART II: COMPLIANCE & LEGAL VIEW
+
+---
+
+## 2. الامتثال للمعايير الدولية وأنظمة المملكة
+
+### 2.1 امتثال ISO 27001 (Information Security Management System)
+
+#### 2.1.1 منهجية التطبيق الفني لـ ISO 27001
+
+**المبدأ العام (Theory):**
+
+ISO 27001 ليس مجرد "توثيق سياسات"، بل هو **تطبيق تقني يُدمج في بنية النظام**. كل بند من بنود ISO 27001 يُترجم إلى:
+1. **Database Schema Change:** تعديل في قاعدة البيانات
+2. **Code Implementation:** تطبيق في الكود (Backend/Frontend)
+3. **Infrastructure Configuration:** ضبط في البنية التحتية (Nginx, PM2, PostgreSQL)
+
+---
+
+#### 2.1.2 تطبيق البند A.9 - Access Control (الحماية الفنية لتسجيل الدخول)
+
+##### **A.9.2.1: User Registration and De-registration**
+
+**المتطلب الفني:**
+
+يجب أن يحتوي جدول `user_permissions` على آلية تتبع دقيقة لحالة المستخدم:
+
+```sql
+-- Database Schema (PostgreSQL + Supabase)
+CREATE TABLE user_permissions (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  office_id UUID NOT NULL REFERENCES offices(id) ON DELETE CASCADE,
+  user_id UUID,
+  name VARCHAR(255) NOT NULL,
+  phone VARCHAR(20) UNIQUE NOT NULL,
+  email VARCHAR(255) UNIQUE NOT NULL,
+  role VARCHAR(50) DEFAULT 'staff' CHECK (role IN ('system_admin', 'office_admin', 'manager', 'staff', 'accountant', 'technician', 'owner', 'tenant')),
+  password_hash TEXT NOT NULL,
+  is_active BOOLEAN DEFAULT true,
+  permissions JSONB DEFAULT '{}',
+  last_login TIMESTAMP,
+  failed_login_attempts INT DEFAULT 0, -- ISO 27001 A.9.4.3
+  account_locked_until TIMESTAMP, -- ISO 27001 A.9.4.3
+  password_expires_at TIMESTAMP, -- ISO 27001 A.9.4.3
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Index for performance
+CREATE INDEX idx_user_phone ON user_permissions(phone);
+CREATE INDEX idx_user_office ON user_permissions(office_id);
+CREATE INDEX idx_user_active ON user_permissions(is_active) WHERE is_active = true;
+```
+
+**التطبيق في Backend (NestJS):**
+
+```typescript
+// api/src/auth/auth.service.ts
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import * as bcrypt from 'bcrypt';
+import { SupabaseService } from '../supabase/supabase.service';
+
+@Injectable()
+export class AuthService {
+  // ISO 27001 A.9.4.3: Password Complexity
+  private readonly PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{12,}$/;
+  
+  // ISO 27001 A.9.4.3: Account Lockout Policy
+  private readonly MAX_FAILED_ATTEMPTS = 5;
+  private readonly LOCKOUT_DURATION_MINUTES = 30;
+
+  async validateUser(phone: string, password: string): Promise<any> {
+    const supabase = this.supabaseService.getClient();
+    
+    // Step 1: Retrieve user from user_permissions table
+    const { data: user, error } = await supabase
+      .from('user_permissions')
+      .select('*')
+      .eq('phone', phone)
+      .single();
+
+    if (error || !user) {
+      // ISO 27001 A.9.4.2: Avoid revealing whether user exists
+      throw new UnauthorizedException('بيانات الدخول غير صحيحة');
+    }
+
+    // Step 2: Check if account is locked (ISO 27001 A.9.4.3)
+    if (user.account_locked_until && new Date(user.account_locked_until) > new Date()) {
+      const minutesLeft = Math.ceil((new Date(user.account_locked_until).getTime() - Date.now()) / 60000);
+      throw new UnauthorizedException(`الحساب مقفل. يرجى المحاولة بعد ${minutesLeft} دقيقة`);
+    }
+
+    // Step 3: Check if account is active (A.9.2.1)
+    if (!user.is_active) {
+      throw new UnauthorizedException('حساب المستخدم غير نشط');
+    }
+
+    // Step 4: Check if password is expired (A.9.4.3)
+    if (user.password_expires_at && new Date(user.password_expires_at) < new Date()) {
+      throw new UnauthorizedException('كلمة المرور منتهية. يرجى تغييرها');
+    }
+
+    // Step 5: Verify password with bcrypt
+    const isPasswordValid = await bcrypt.compare(password, user.password_hash);
+    
+    if (!isPasswordValid) {
+      // Increment failed login attempts
+      const newFailedAttempts = (user.failed_login_attempts || 0) + 1;
+      
+      // Lock account if max attempts reached
+      if (newFailedAttempts >= this.MAX_FAILED_ATTEMPTS) {
+        const lockUntil = new Date(Date.now() + this.LOCKOUT_DURATION_MINUTES * 60000);
+        await supabase
+          .from('user_permissions')
+          .update({
+            failed_login_attempts: newFailedAttempts,
+            account_locked_until: lockUntil.toISOString()
+          })
+          .eq('id', user.id);
+        
+        throw new UnauthorizedException(`تم قفل الحساب لمدة ${this.LOCKOUT_DURATION_MINUTES} دقيقة بسبب تجاوز عدد المحاولات`);
+      }
+
+      // Update failed attempts
+      await supabase
+        .from('user_permissions')
+        .update({ failed_login_attempts: newFailedAttempts })
+        .eq('id', user.id);
+
+      throw new UnauthorizedException('بيانات الدخول غير صحيحة');
+    }
+
+    // Step 6: Reset failed attempts on successful login
+    await supabase
+      .from('user_permissions')
+      .update({
+        failed_login_attempts: 0,
+        account_locked_until: null,
+        last_login: new Date().toISOString()
+      })
+      .eq('id', user.id);
+
+    // Return user without sensitive data
+    const { password_hash, ...result } = user;
+    return result;
+  }
+
+  // ISO 27001 A.9.4.3: Password Validation on Registration
+  validatePasswordComplexity(password: string): boolean {
+    return this.PASSWORD_REGEX.test(password);
+  }
+}
+```
+
+**حل الملاحظة #3 (Token Expiration):**
+
+```typescript
+// api/src/auth/auth.service.ts
+async login(user: any): Promise<{ accessToken: string; refreshToken: string }> {
+  const payload = {
+    sub: user.id,
+    user_id: user.user_id || user.id,
+    office_id: user.office_id,
+    role: user.role,
+    permissions: user.permissions
+  };
+
+  // Access Token: 15 minutes (ISO 27001 A.9.4.1)
+  const accessToken = this.jwtService.sign(payload, {
+    secret: process.env.JWT_SECRET,
+    expiresIn: '15m'
+  });
+
+  // Refresh Token: 7 days (stored securely)
+  const refreshToken = this.jwtService.sign(
+    { sub: user.id, type: 'refresh' },
+    {
+      secret: process.env.JWT_REFRESH_SECRET,
+      expiresIn: '7d'
+    }
+  );
+
+  // Store refresh token in database with rotation
+  await this.storeRefreshToken(user.id, refreshToken);
+
+  return { accessToken, refreshToken };
+}
+
+// Refresh Token Storage (ISO 27001 A.10.1.1)
+private async storeRefreshToken(userId: string, token: string): Promise<void> {
+  const supabase = this.supabaseService.getClient();
+  
+  const hashedToken = await bcrypt.hash(token, 10);
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+  await supabase.from('refresh_tokens').insert({
+    user_id: userId,
+    token_hash: hashedToken,
+    expires_at: expiresAt.toISOString(),
+    is_revoked: false
+  });
+}
+
+// Silent Token Refresh (حل الملاحظة #3)
+async refreshAccessToken(userId: string, refreshToken: string): Promise<string> {
+  const supabase = this.supabaseService.getClient();
+
+  // Verify refresh token exists and is not revoked
+  const { data: tokens } = await supabase
+    .from('refresh_tokens')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('is_revoked', false)
+    .gt('expires_at', new Date().toISOString());
+
+  if (!tokens || tokens.length === 0) {
+    throw new UnauthorizedException('Refresh token expired or revoked');
+  }
+
+  // Verify token hash
+  let validToken = null;
+  for (const t of tokens) {
+    if (await bcrypt.compare(refreshToken, t.token_hash)) {
+      validToken = t;
+      break;
+    }
+  }
+
+  if (!validToken) {
+    throw new UnauthorizedException('Invalid refresh token');
+  }
+
+  // Get fresh user data
+  const { data: user } = await supabase
+    .from('user_permissions')
+    .select('*')
+    .eq('id', userId)
+    .single();
+
+  if (!user || !user.is_active) {
+    throw new UnauthorizedException('User account is inactive');
+  }
+
+  // Generate new access token
+  const payload = {
+    sub: user.id,
+    user_id: user.user_id || user.id,
+    office_id: user.office_id,
+    role: user.role,
+    permissions: user.permissions
+  };
+
+  return this.jwtService.sign(payload, {
+    secret: process.env.JWT_SECRET,
+    expiresIn: '15m'
+  });
+}
+```
+
+**Frontend Implementation (Axios Interceptor):**
+
+```typescript
+// Web/src/lib/axios.ts
+import axios from 'axios';
+
+const api = axios.create({
+  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001',
+  withCredentials: true // For HttpOnly cookies
+});
+
+// Request Interceptor: Attach Access Token
+api.interceptors.request.use(
+  (config) => {
+    const accessToken = localStorage.getItem('accessToken');
+    if (accessToken) {
+      config.headers['Authorization'] = `Bearer ${accessToken}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// Response Interceptor: Silent Token Refresh (حل الملاحظة #3)
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+
+    // If error is 401 and we haven't retried yet
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+
+      try {
+        // Attempt silent refresh using HttpOnly cookie
+        const { data } = await axios.post(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/auth/refresh`,
+          {},
+          { withCredentials: true }
+        );
+
+        // Store new access token
+        localStorage.setItem('accessToken', data.accessToken);
+
+        // Retry original request with new token
+        originalRequest.headers['Authorization'] = `Bearer ${data.accessToken}`;
+        return api(originalRequest);
+      } catch (refreshError) {
+        // Refresh failed, redirect to login
+        localStorage.removeItem('accessToken');
+        window.location.href = '/login';
+        return Promise.reject(refreshError);
+      }
+    }
+
+    return Promise.reject(error);
+  }
+);
+
+export default api;
+```
+
+---
+
+##### **A.9.4.5: Review of User Access Rights**
+
+**المتطلب الفني:**
+
+يجب إجراء مراجعة دورية لصلاحيات المستخدمين (كل 90 يوماً):
+
+```typescript
+// api/src/auth/auth.service.ts
+async generateAccessReviewReport(officeId: string): Promise<any> {
+  const supabase = this.supabaseService.getClient();
+
+  const { data: users } = await supabase
+    .from('user_permissions')
+    .select('*')
+    .eq('office_id', officeId)
+    .eq('is_active', true);
+
+  const reviewData = users.map(user => ({
+    userId: user.id,
+    name: user.name,
+    role: user.role,
+    lastLogin: user.last_login,
+    passwordAge: this.calculatePasswordAge(user.updated_at),
+    permissions: user.permissions,
+    requiresReview: this.calculatePasswordAge(user.updated_at) > 90
+  }));
+
+  return reviewData;
+}
+
+private calculatePasswordAge(updatedAt: string): number {
+  const daysSinceUpdate = Math.floor(
+    (Date.now() - new Date(updatedAt).getTime()) / (1000 * 60 * 60 * 24)
+  );
+  return daysSinceUpdate;
+}
+```
+
+---
+
+#### 2.1.3 تطبيق البند A.10 - Cryptography (التشفير الفني)
+
+##### **A.10.1.1: Encryption at Rest**
+
+**المتطلب الفني:**
+
+يجب تشفير الحقول الحساسة في قاعدة البيانات باستخدام `pgcrypto`:
+
+```sql
+-- Enable pgcrypto extension
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+-- Encryption/Decryption Functions
+CREATE OR REPLACE FUNCTION encrypt_sensitive_data(data TEXT, key TEXT)
+RETURNS TEXT AS $$
+BEGIN
+  RETURN encode(pgp_sym_encrypt(data, key), 'base64');
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION decrypt_sensitive_data(encrypted_data TEXT, key TEXT)
+RETURNS TEXT AS $$
+BEGIN
+  RETURN pgp_sym_decrypt(decode(encrypted_data, 'base64'), key);
+END;
+$$ LANGUAGE plpgsql;
+```
+
+**تطبيق التشفير على جدول Customers:**
+
+```sql
+-- Modify customers table to encrypt sensitive fields
+ALTER TABLE customers ADD COLUMN national_id_encrypted TEXT;
+ALTER TABLE customers ADD COLUMN phone_encrypted TEXT;
+
+-- Trigger to auto-encrypt on INSERT/UPDATE
+CREATE OR REPLACE FUNCTION encrypt_customer_data()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Encrypt national_id if provided
+  IF NEW.national_id IS NOT NULL THEN
+    NEW.national_id_encrypted = encrypt_sensitive_data(
+      NEW.national_id, 
+      current_setting('app.encryption_key')
+    );
+    NEW.national_id = NULL; -- Clear plaintext
+  END IF;
+
+  -- Encrypt phone
+  IF NEW.phone IS NOT NULL THEN
+    NEW.phone_encrypted = encrypt_sensitive_data(
+      NEW.phone, 
+      current_setting('app.encryption_key')
+    );
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trigger_encrypt_customer
+BEFORE INSERT OR UPDATE ON customers
+FOR EACH ROW
+EXECUTE FUNCTION encrypt_customer_data();
+```
+
+**Backend Implementation:**
+
+```typescript
+// api/src/customers/customers.service.ts
+import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { SupabaseService } from '../supabase/supabase.service';
+
+@Injectable()
+export class CustomersService {
+  constructor(
+    private readonly supabaseService: SupabaseService,
+    private readonly configService: ConfigService
+  ) {}
+
+  async findCustomer(officeId: string, customerId: string): Promise<any> {
+    const supabase = this.supabaseService.getClient();
+    const encryptionKey = this.configService.get<string>('ENCRYPTION_KEY');
+
+    // Query with decryption
+    const { data, error } = await supabase.rpc('get_customer_decrypted', {
+      p_office_id: officeId,
+      p_customer_id: customerId,
+      p_key: encryptionKey
+    });
+
+    if (error) throw error;
+    return data;
+  }
+}
+```
+
+```sql
+-- Stored Procedure for Decryption
+CREATE OR REPLACE FUNCTION get_customer_decrypted(
+  p_office_id UUID,
+  p_customer_id UUID,
+  p_key TEXT
+)
+RETURNS TABLE (
+  id UUID,
+  name TEXT,
+  phone TEXT,
+  email TEXT,
+  national_id TEXT,
+  city TEXT,
+  address TEXT
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    c.id,
+    c.name,
+    decrypt_sensitive_data(c.phone_encrypted, p_key) AS phone,
+    c.email,
+    decrypt_sensitive_data(c.national_id_encrypted, p_key) AS national_id,
+    c.city,
+    c.address
+  FROM customers c
+  WHERE c.office_id = p_office_id
+    AND c.id = p_customer_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
+
+---
+
+##### **A.10.1.2: Encryption in Transit (TLS/SSL)**
+
+**المتطلب الفني:**
+
+جميع الاتصالات يجب أن تكون عبر HTTPS/TLS 1.3:
+
+```nginx
+# /etc/nginx/sites-available/realestate-system
+server {
+    listen 80;
+    server_name yourdomain.com;
+    
+    # Redirect all HTTP to HTTPS (ISO 27001 A.10.1.2)
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name yourdomain.com;
+
+    # SSL Configuration (ISO 27001 A.10.1.2)
+    ssl_certificate /etc/letsencrypt/live/yourdomain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/yourdomain.com/privkey.pem;
+    
+    # Force TLS 1.3 only
+    ssl_protocols TLSv1.3;
+    ssl_ciphers 'TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384';
+    ssl_prefer_server_ciphers off;
+
+    # HSTS (ISO 27001 A.10.1.2)
+    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
+    
+    # Security Headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';" always;
+
+    location /api {
+        proxy_pass http://localhost:3001;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+```
+
+---
+
+#### 2.1.4 تطبيق البند A.12 - Operations Security
+
+##### **A.12.4.1: Event Logging**
+
+**المتطلب الفني:**
+
+يجب تسجيل جميع الأحداث الأمنية الحرجة:
+
+```sql
+-- Audit Log Table (ISO 27001 A.12.4.1)
+CREATE TABLE audit_logs (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES user_permissions(id),
+  office_id UUID REFERENCES offices(id),
+  action VARCHAR(100) NOT NULL, -- 'LOGIN', 'LOGOUT', 'CREATE', 'UPDATE', 'DELETE', 'EXPORT'
+  entity_type VARCHAR(50), -- 'Property', 'Customer', 'Contract'
+  entity_id UUID,
+  ip_address INET,
+  user_agent TEXT,
+  request_payload JSONB,
+  response_status INT,
+  timestamp TIMESTAMP DEFAULT NOW()
+);
+
+-- Index for fast queries
+CREATE INDEX idx_audit_user ON audit_logs(user_id);
+CREATE INDEX idx_audit_office ON audit_logs(office_id);
+CREATE INDEX idx_audit_timestamp ON audit_logs(timestamp DESC);
+CREATE INDEX idx_audit_action ON audit_logs(action);
+```
+
+**NestJS Interceptor للتسجيل التلقائي:**
+
+```typescript
+// api/src/common/interceptors/audit-log.interceptor.ts
+import { Injectable, NestInterceptor, ExecutionContext, CallHandler } from '@nestjs/common';
+import { Observable } from 'rxjs';
+import { tap } from 'rxjs/operators';
+import { SupabaseService } from '../../supabase/supabase.service';
+
+@Injectable()
+export class AuditLogInterceptor implements NestInterceptor {
+  constructor(private readonly supabaseService: SupabaseService) {}
+
+  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+    const request = context.switchToHttp().getRequest();
+    const response = context.switchToHttp().getResponse();
+    
+    const user = request.user;
+    const method = request.method;
+    const url = request.url;
+
+    // Map HTTP method to action
+    const actionMap = {
+      'POST': 'CREATE',
+      'PUT': 'UPDATE',
+      'PATCH': 'UPDATE',
+      'DELETE': 'DELETE',
+      'GET': 'READ'
+    };
+
+    return next.handle().pipe(
+      tap(async (data) => {
+        const supabase = this.supabaseService.getClient();
+
+        await supabase.from('audit_logs').insert({
+          user_id: user?.id,
+          office_id: user?.office_id,
+          action: actionMap[method] || method,
+          entity_type: this.extractEntityType(url),
+          entity_id: data?.id || null,
+          ip_address: request.ip,
+          user_agent: request.headers['user-agent'],
+          request_payload: method !== 'GET' ? request.body : null,
+          response_status: response.statusCode
+        });
+      })
+    );
+  }
+
+  private extractEntityType(url: string): string {
+    if (url.includes('/properties')) return 'Property';
+    if (url.includes('/customers')) return 'Customer';
+    if (url.includes('/contracts')) return 'Contract';
+    if (url.includes('/appointments')) return 'Appointment';
+    return 'Unknown';
+  }
+}
+```
+
+**تطبيق الـ Interceptor على Controllers:**
+
+```typescript
+// api/src/properties/properties.controller.ts
+import { Controller, UseInterceptors } from '@nestjs/common';
+import { AuditLogInterceptor } from '../common/interceptors/audit-log.interceptor';
+
+@Controller('properties')
+@UseInterceptors(AuditLogInterceptor) // ISO 27001 A.12.4.1
+export class PropertiesController {
+  // ... controller methods
+}
+```
+
+---
+
+### 2.2 امتثال نظام حماية البيانات الشخصية السعودي (PDPL)
+
+#### 2.2.1 المادة 5: الحصول على الموافقة (Consent Management)
+
+**المتطلب الفني:**
+
+يجب الحصول على موافقة صريحة قبل جمع أي بيانات شخصية:
+
+```sql
+-- Consent Management Table
+CREATE TABLE customer_consents (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  customer_id UUID REFERENCES customers(id) ON DELETE CASCADE,
+  office_id UUID NOT NULL,
+  consent_type VARCHAR(50) NOT NULL, -- 'DATA_COLLECTION', 'MARKETING', 'THIRD_PARTY_SHARING'
+  consent_given BOOLEAN NOT NULL DEFAULT false,
+  consent_text TEXT NOT NULL, -- Exact text shown to customer
+  consented_at TIMESTAMP,
+  ip_address INET,
+  user_agent TEXT,
+  revoked_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX idx_consent_customer ON customer_consents(customer_id);
+```
+
+**Backend Implementation:**
+
+```typescript
+// api/src/customers/dto/create-customer.dto.ts
+import { IsBoolean, IsNotEmpty, IsString } from 'class-validator';
+
+export class CreateCustomerDto {
+  @IsString()
+  @IsNotEmpty()
+  name: string;
+
+  @IsString()
+  @IsNotEmpty()
+  phone: string;
+
+  // PDPL Compliance: Consent must be explicit
+  @IsBoolean()
+  @IsNotEmpty()
+  dataCollectionConsent: boolean;
+
+  @IsBoolean()
+  marketingConsent: boolean;
+
+  @IsBoolean()
+  thirdPartyConsent: boolean;
+}
+```
+
+```typescript
+// api/src/customers/customers.service.ts
+async createCustomer(officeId: string, dto: CreateCustomerDto, req: any): Promise<any> {
+  const supabase = this.supabaseService.getClient();
+
+  // PDPL Check: Consent must be true for data collection
+  if (!dto.dataCollectionConsent) {
+    throw new BadRequestException('يجب الموافقة على سياسة جمع البيانات الشخصية');
+  }
+
+  // Create customer
+  const { data: customer, error } = await supabase
+    .from('customers')
+    .insert({
+      office_id: officeId,
+      name: dto.name,
+      phone: dto.phone,
+      email: dto.email,
+      national_id: dto.nationalId
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  // Store consents (PDPL Article 5)
+  await supabase.from('customer_consents').insert([
+    {
+      customer_id: customer.id,
+      office_id: officeId,
+      consent_type: 'DATA_COLLECTION',
+      consent_given: dto.dataCollectionConsent,
+      consent_text: 'أوافق على جمع واستخدام بياناتي الشخصية لأغراض إدارة العقارات',
+      consented_at: new Date().toISOString(),
+      ip_address: req.ip,
+      user_agent: req.headers['user-agent']
+    },
+    {
+      customer_id: customer.id,
+      office_id: officeId,
+      consent_type: 'MARKETING',
+      consent_given: dto.marketingConsent || false,
+      consent_text: 'أوافق على تلقي عروض تسويقية عبر الهاتف أو البريد الإلكتروني',
+      consented_at: dto.marketingConsent ? new Date().toISOString() : null,
+      ip_address: req.ip,
+      user_agent: req.headers['user-agent']
+    }
+  ]);
+
+  return customer;
+}
+```
+
+---
+
+#### 2.2.2 المادة 8: حق الوصول والحذف (Right to Access and Erasure)
+
+**المتطلب الفني:**
+
+يجب توفير API للعميل للحصول على نسخة من بياناته أو حذفها:
+
+```typescript
+// api/src/customers/customers.controller.ts
+@Controller('customers')
+export class CustomersController {
+  
+  // PDPL Article 8: Right to Access
+  @Get(':id/data-export')
+  @Roles('system_admin', 'office_admin', 'manager')
+  async exportCustomerData(
+    @Req() req: any,
+    @Param('id') customerId: string
+  ): Promise<any> {
+    const officeId = req.user.office_id;
+
+    const supabase = this.supabaseService.getClient();
+
+    // Get all customer data
+    const { data: customer } = await supabase
+      .from('customers')
+      .select('*')
+      .eq('id', customerId)
+      .eq('office_id', officeId)
+      .single();
+
+    // Get customer interactions
+    const { data: interactions } = await supabase
+      .from('customer_interactions')
+      .select('*')
+      .eq('customer_id', customerId)
+      .eq('office_id', officeId);
+
+    // Get consents
+    const { data: consents } = await supabase
+      .from('customer_consents')
+      .select('*')
+      .eq('customer_id', customerId);
+
+    // PDPL Compliance: Return all data in readable format
+    return {
+      customer,
+      interactions,
+      consents,
+      exportedAt: new Date().toISOString(),
+      note: 'هذه نسخة كاملة من بياناتك الشخصية المخزنة لدينا وفقاً لنظام حماية البيانات الشخصية السعودي'
+    };
+  }
+
+  // PDPL Article 8: Right to Erasure
+  @Delete(':id/gdpr-delete')
+  @Roles('system_admin', 'office_admin')
+  async permanentlyDeleteCustomer(
+    @Req() req: any,
+    @Param('id') customerId: string
+  ): Promise<any> {
+    const officeId = req.user.office_id;
+    const supabase = this.supabaseService.getClient();
+
+    // PDPL: Log the deletion request
+    await supabase.from('audit_logs').insert({
+      user_id: req.user.id,
+      office_id: officeId,
+      action: 'GDPR_DELETE',
+      entity_type: 'Customer',
+      entity_id: customerId,
+      request_payload: { reason: 'Customer requested permanent deletion (PDPL Article 8)' }
+    });
+
+    // Delete customer and all related data (cascade)
+    const { error } = await supabase
+      .from('customers')
+      .delete()
+      .eq('id', customerId)
+      .eq('office_id', officeId);
+
+    if (error) throw error;
+
+    return {
+      success: true,
+      message: 'تم حذف بيانات العميل بشكل دائم وفقاً لنظام حماية البيانات الشخصية'
+    };
+  }
+}
+```
+
+---
+
+#### 2.2.3 المادة 17: سيادة البيانات (Data Sovereignty)
+
+**المتطلب الفني:**
+
+يجب تخزين جميع البيانات داخل المملكة العربية السعودية:
+
+**Supabase Configuration:**
+
+```typescript
+// api/src/supabase/supabase.service.ts
+import { Injectable } from '@nestjs/common';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { ConfigService } from '@nestjs/config';
+
+@Injectable()
+export class SupabaseService {
+  private supabase: SupabaseClient;
+
+  constructor(private readonly configService: ConfigService) {
+    const supabaseUrl = this.configService.get<string>('SUPABASE_URL');
+    const supabaseKey = this.configService.get<string>('SUPABASE_SERVICE_ROLE_KEY');
+
+    // PDPL Article 17: Ensure Supabase region is set to Middle East
+    // Supabase Project must be created in AWS ME-SOUTH-1 (Bahrain) region
+    if (!supabaseUrl.includes('supabase.co')) {
+      throw new Error('PDPL Violation: Supabase URL must be from approved region');
+    }
+
+    this.supabase = createClient(supabaseUrl, supabaseKey, {
+      auth: {
+        persistSession: false
+      },
+      db: {
+        schema: 'public'
+      }
+    });
+  }
+
+  getClient(): SupabaseClient {
+    return this.supabase;
+  }
+}
+```
+
+**البنية التحتية (Infrastructure as Code):**
+
+```yaml
+# docker-compose.yml للبيئة المحلية
+version: '3.8'
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: real_estate_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # PDPL: Ensure data volume is in compliant region
+    ports:
+      - "5432:5432"
+    networks:
+      - app_network
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - app_network
+
+volumes:
+  postgres_data:
+    driver: local
+    # In production, use AWS EBS volumes in me-south-1
+
+networks:
+  app_network:
+    driver: bridge
+```
+
+---
+
+### 2.3 التكامل مع منصة إيجار (Ejar Platform Integration)
+
+#### 2.3.1 متطلبات التكامل الفني مع Ejar API
+
+**البنية المعمارية:**
+
+```typescript
+// api/src/ejar/ejar.service.ts
+import { Injectable, HttpException } from '@nestjs/common';
+import axios, { AxiosInstance } from 'axios';
+import { ConfigService } from '@nestjs/config';
+
+@Injectable()
+export class EjarService {
+  private ejarClient: AxiosInstance;
+
+  constructor(private readonly configService: ConfigService) {
+    this.ejarClient = axios.create({
+      baseURL: this.configService.get<string>('EJAR_API_URL', 'https://api.ejar.sa/v1'),
+      timeout: 30000,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      }
+    });
+
+    // Axios Interceptor for Authentication
+    this.ejarClient.interceptors.request.use(
+      async (config) => {
+        const token = await this.getEjarAccessToken();
+        config.headers['Authorization'] = `Bearer ${token}`;
+        return config;
+      },
+      (error) => Promise.reject(error)
+    );
+  }
+
+  // OAuth2 Token Management
+  private async getEjarAccessToken(): Promise<string> {
+    const clientId = this.configService.get<string>('EJAR_CLIENT_ID');
+    const clientSecret = this.configService.get<string>('EJAR_CLIENT_SECRET');
+
+    const { data } = await axios.post('https://auth.ejar.sa/oauth/token', {
+      grant_type: 'client_credentials',
+      client_id: clientId,
+      client_secret: clientSecret,
+      scope: 'contracts:create contracts:read contracts:update'
+    });
+
+    return data.access_token;
+  }
+
+  // Register Contract with Ejar
+  async registerContract(contractData: any): Promise<any> {
+    try {
+      const payload = {
+        contractNumber: contractData.contract_number,
+        propertyId: contractData.property_id,
+        landlordId: contractData.landlord_national_id,
+        tenantId: contractData.tenant_national_id,
+        startDate: contractData.start_date,
+        endDate: contractData.end_date,
+        monthlyRent: contractData.monthly_rent,
+        paymentMethod: contractData.payment_method,
+        propertyDetails: {
+          type: contractData.property_type,
+          address: contractData.property_address,
+          city: contractData.property_city,
+          district: contractData.property_district
+        }
+      };
+
+      const { data } = await this.ejarClient.post('/contracts', payload);
+
+      return {
+        success: true,
+        ejarContractId: data.id,
+        ejarStatus: data.status,
+        registrationDate: data.created_at
+      };
+    } catch (error) {
+      throw new HttpException(
+        `فشل التسجيل في منصة إيجار: ${error.response?.data?.message || error.message}`,
+        error.response?.status || 500
+      );
+    }
+  }
+
+  // Verify Contract Status
+  async verifyContractStatus(ejarContractId: string): Promise<any> {
+    const { data } = await this.ejarClient.get(`/contracts/${ejarContractId}`);
+    
+    return {
+      status: data.status, // 'pending', 'active', 'expired', 'terminated'
+      verifiedAt: new Date().toISOString(),
+      landlordSignature: data.landlord_signature_status,
+      tenantSignature: data.tenant_signature_status
+    };
+  }
+}
+```
+
+**Database Schema للتكامل مع Ejar:**
+
+```sql
+-- Ejar Integration Tracking
+ALTER TABLE rental_contracts ADD COLUMN ejar_contract_id VARCHAR(255);
+ALTER TABLE rental_contracts ADD COLUMN ejar_status VARCHAR(50);
+ALTER TABLE rental_contracts ADD COLUMN ejar_registered_at TIMESTAMP;
+ALTER TABLE rental_contracts ADD COLUMN ejar_last_sync TIMESTAMP;
+
+CREATE INDEX idx_contract_ejar ON rental_contracts(ejar_contract_id);
+```
+
+---
+
+### 2.4 الامتثال لمتطلبات هيئة الزكاة والضريبة والجمارك (ZATCA)
+
+#### 2.4.1 إصدار الفواتير الإلكترونية (E-Invoicing Phase 2)
+
+**المتطلب الفني:**
+
+يجب إصدار فواتير إلكترونية متوافقة مع معايير ZATCA:
+
+```typescript
+// api/src/invoices/invoices.service.ts
+import { Injectable } from '@nestjs/common';
+import { create } from 'xmlbuilder2';
+import * as QRCode from 'qrcode';
+import * as crypto from 'crypto';
+
+@Injectable()
+export class InvoicesService {
+  // Generate ZATCA-compliant XML Invoice
+  async generateZATCAInvoice(contractId: string, paymentId: string): Promise<string> {
+    const supabase = this.supabaseService.getClient();
+
+    // Fetch invoice data
+    const { data: payment } = await supabase
+      .from('rental_payments')
+      .select(`
+        *,
+        rental_contracts (
+          *,
+          properties (*),
+          customers (*)
+        )
+      `)
+      .eq('id', paymentId)
+      .single();
+
+    const contract = payment.rental_contracts;
+    const property = contract.properties;
+    const customer = contract.customers;
+
+    // Generate Invoice Hash (ZATCA Requirement)
+    const invoiceHash = this.generateInvoiceHash(payment);
+
+    // Build XML (UBL 2.1 Format)
+    const xml = create({ version: '1.0', encoding: 'UTF-8' })
+      .ele('Invoice', { 
+        'xmlns': 'urn:oasis:names:specification:ubl:schema:xsd:Invoice-2',
+        'xmlns:cac': 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2',
+        'xmlns:cbc': 'urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2'
+      })
+        .ele('cbc:ID').txt(payment.id).up()
+        .ele('cbc:IssueDate').txt(new Date().toISOString().split('T')[0]).up()
+        .ele('cbc:IssueTime').txt(new Date().toTimeString().split(' ')[0]).up()
+        .ele('cbc:InvoiceTypeCode', { name: 'Tax Invoice' }).txt('388').up()
+        .ele('cbc:DocumentCurrencyCode').txt('SAR').up()
+        .ele('cbc:TaxCurrencyCode').txt('SAR').up()
+        
+        // Supplier (Office)
+        .ele('cac:AccountingSupplierParty')
+          .ele('cac:Party')
+            .ele('cac:PartyIdentification')
+              .ele('cbc:ID', { schemeID: 'CRN' }).txt(contract.office_cr_number).up()
+            .up()
+            .ele('cac:PartyLegalEntity')
+              .ele('cbc:RegistrationName').txt(contract.office_name).up()
+            .up()
+          .up()
+        .up()
+
+        // Customer (Tenant)
+        .ele('cac:AccountingCustomerParty')
+          .ele('cac:Party')
+            .ele('cac:PartyIdentification')
+              .ele('cbc:ID', { schemeID: 'NAT' }).txt(customer.national_id).up()
+            .up()
+            .ele('cac:PartyLegalEntity')
+              .ele('cbc:RegistrationName').txt(customer.name).up()
+            .up()
+          .up()
+        .up()
+
+        // Tax Total (VAT 15%)
+        .ele('cac:TaxTotal')
+          .ele('cbc:TaxAmount', { currencyID: 'SAR' }).txt((payment.amount * 0.15).toFixed(2)).up()
+        .up()
+
+        // Legal Monetary Total
+        .ele('cac:LegalMonetaryTotal')
+          .ele('cbc:TaxExclusiveAmount', { currencyID: 'SAR' }).txt((payment.amount / 1.15).toFixed(2)).up()
+          .ele('cbc:TaxInclusiveAmount', { currencyID: 'SAR' }).txt(payment.amount.toFixed(2)).up()
+          .ele('cbc:PayableAmount', { currencyID: 'SAR' }).txt(payment.amount.toFixed(2)).up()
+        .up()
+
+        // Invoice Line
+        .ele('cac:InvoiceLine')
+          .ele('cbc:ID').txt('1').up()
+          .ele('cbc:InvoicedQuantity', { unitCode: 'MON' }).txt('1').up()
+          .ele('cbc:LineExtensionAmount', { currencyID: 'SAR' }).txt((payment.amount / 1.15).toFixed(2)).up()
+          .ele('cac:Item')
+            .ele('cbc:Description').txt(`إيجار ${property.title} - شهر ${payment.month}`).up()
+          .up()
+        .up()
+
+        // QR Code Data (ZATCA Requirement)
+        .ele('cac:AdditionalDocumentReference')
+          .ele('cbc:ID').txt('QR').up()
+          .ele('cac:Attachment')
+            .ele('cbc:EmbeddedDocumentBinaryObject', { mimeCode: 'text/plain' })
+              .txt(await this.generateZATCAQRCode(payment, invoiceHash))
+            .up()
+          .up()
+        .up()
+
+        // Cryptographic Stamp
+        .ele('cac:Signature')
+          .ele('cbc:ID').txt('urn:oasis:names:specification:ubl:signature:Invoice').up()
+          .ele('cbc:SignatureMethod').txt('urn:oasis:names:specification:ubl:dsig:enveloped:xades').up()
+        .up()
+
+      .up()
+    .end({ prettyPrint: true });
+
+    return xml;
+  }
+
+  // Generate Invoice Hash (SHA-256)
+  private generateInvoiceHash(payment: any): string {
+    const dataToHash = `${payment.id}|${payment.amount}|${payment.due_date}|${payment.rental_contracts.office_vat_number}`;
+    return crypto.createHash('sha256').update(dataToHash).digest('hex');
+  }
+
+  // Generate ZATCA QR Code (TLV Format)
+  private async generateZATCAQRCode(payment: any, invoiceHash: string): Promise<string> {
+    const contract = payment.rental_contracts;
+    
+    // TLV Encoding (Tag-Length-Value)
+    const tlvData = Buffer.concat([
+      this.tlvEncode(1, contract.office_name),           // Seller Name
+      this.tlvEncode(2, contract.office_vat_number),     // Seller VAT Number
+      this.tlvEncode(3, new Date().toISOString()),       // Invoice Date
+      this.tlvEncode(4, payment.amount.toFixed(2)),      // Total with VAT
+      this.tlvEncode(5, (payment.amount * 0.15).toFixed(2)), // VAT Amount
+      this.tlvEncode(6, invoiceHash)                     // Invoice Hash
+    ]);
+
+    const qrDataBase64 = tlvData.toString('base64');
+    
+    // Generate QR Code Image
+    const qrCodeImage = await QRCode.toDataURL(qrDataBase64);
+    
+    return qrDataBase64;
+  }
+
+  // TLV Encoding Helper
+  private tlvEncode(tag: number, value: string): Buffer {
+    const valueBuffer = Buffer.from(value, 'utf8');
+    const tagBuffer = Buffer.from([tag]);
+    const lengthBuffer = Buffer.from([valueBuffer.length]);
+    return Buffer.concat([tagBuffer, lengthBuffer, valueBuffer]);
+  }
+
+  // Report Invoice to ZATCA (Phase 2 Requirement)
+  async reportInvoiceToZATCA(invoiceXml: string, invoiceHash: string): Promise<any> {
+    const zatcaClient = axios.create({
+      baseURL: process.env.ZATCA_API_URL || 'https://api.zatca.gov.sa/compliance',
+      headers: {
+        'Content-Type': 'application/xml',
+        'Authorization': `Bearer ${process.env.ZATCA_API_KEY}`,
+        'Accept-Version': 'V2'
+      }
+    });
+
+    try {
+      const { data } = await zatcaClient.post('/invoices/reporting', {
+        invoiceXml,
+        invoiceHash
+      });
+
+      return {
+        success: true,
+        zatcaInvoiceId: data.invoice_id,
+        zatcaStatus: data.status,
+        reportedAt: new Date().toISOString()
+      };
+    } catch (error) {
+      throw new HttpException(
+        `فشل إرسال الفاتورة لهيئة الزكاة: ${error.response?.data?.message}`,
+        error.response?.status || 500
+      );
+    }
+  }
+}
+```
+
+---
+
+## الملاحظات الختامية للجزء الثاني
+
+**ملخص النقاط الرئيسية:**
+
+1. **ISO 27001 Implementation:**
+   - كل بند ISO مُطبّق على مستوى الكود (ليس توثيق فقط)
+   - Password Complexity: Regex محدد
+   - Account Lockout: 5 محاولات، قفل لمدة 30 دقيقة
+   - Encryption at Rest: pgcrypto لحقول `national_id`, `phone`
+   - TLS 1.3: إجباري على كل Connections
+
+2. **PDPL Compliance:**
+   - Consent Management: جدول `customer_consents` مع IP/User-Agent tracking
+   - Right to Access: API endpoint لتصدير كل بيانات العميل
+   - Right to Erasure: API endpoint للحذف الدائم (GDPR Delete)
+   - Data Sovereignty: Supabase في منطقة الشرق الأوسط
+
+3. **Ejar Integration:**
+   - OAuth2 Authentication مع Ejar API
+   - Register Contract: API endpoint لتسجيل عقود الإيجار
+   - Status Sync: جدول tracking لحالة العقد في إيجار
+
+4. **ZATCA E-Invoicing:**
+   - UBL 2.1 XML Format (معيار عالمي)
+   - QR Code: TLV Encoding وفقاً لمتطلبات ZATCA Phase 2
+   - Invoice Hash: SHA-256
+   - Reporting API: إرسال الفواتير لهيئة الزكاة
+
+---
+
+**الخطوة التالية:**
+الانتقال إلى **الجزء الثالث: النظرة التشغيلية (PART III: OPERATIONAL VIEW)** الذي سيفصّل Multi-Tenancy Architecture و RBAC Matrix الكامل.
+
+---
+
+**تاريخ التحديث:** 19 نوفمبر 2025
+**الإصدار:** 3.0 - Part II
+**الحالة:** مكتمل ✓
+
+---
+
+# **الجزء الثالث: النظرة التشغيلية**
+## PART III: OPERATIONAL VIEW
+
+---
+
+## 3. البنية التشغيلية للنظام
+
+### 3.1 معمارية Multi-Tenancy (العزل الكامل بين المكاتب العقارية)
+
+#### 3.1.1 مستويات العزل (Isolation Levels)
+
+**المبدأ الأساسي:**
+
+Multi-Tenancy ليس "مجرد إضافة `office_id` في SQL". بل هو **نظام عزل متعدد المستويات**:
+
+1. **Database-Level Isolation:** على مستوى قاعدة البيانات
+2. **Application-Level Scoping:** على مستوى التطبيق (Backend)
+3. **Frontend State Isolation:** على مستوى الواجهة (Frontend)
+4. **File Storage Isolation:** على مستوى التخزين (S3/Object Storage)
+
+---
+
+##### **Level 1: Database-Level Isolation**
+
+**القاعدة الحديدية:**
+
+كل جدول (Table) في قاعدة البيانات **يجب** أن يحتوي على عمود `office_id`:
+
+```sql
+-- Example: Properties Table
+CREATE TABLE properties (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  office_id UUID NOT NULL REFERENCES offices(id) ON DELETE CASCADE, -- CRITICAL
+  title VARCHAR(255) NOT NULL,
+  property_type VARCHAR(50),
+  listing_type VARCHAR(50),
+  price DECIMAL(12, 2),
+  city VARCHAR(100),
+  district VARCHAR(100),
+  deleted_at TIMESTAMP, -- Soft delete
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Index for Multi-Tenancy Performance
+CREATE INDEX idx_properties_office ON properties(office_id);
+CREATE INDEX idx_properties_office_active ON properties(office_id) WHERE deleted_at IS NULL;
+```
+
+**Row-Level Security (RLS) Policy:**
+
+```sql
+-- Enable Row-Level Security
+ALTER TABLE properties ENABLE ROW LEVEL SECURITY;
+
+-- Policy: Users can only access properties in their office
+CREATE POLICY tenant_isolation_policy ON properties
+  FOR ALL
+  USING (office_id = current_setting('app.current_office_id')::UUID);
+
+-- Helper Function to Set Office Context
+CREATE OR REPLACE FUNCTION set_office_context(p_office_id UUID)
+RETURNS VOID AS $$
+BEGIN
+  PERFORM set_config('app.current_office_id', p_office_id::TEXT, FALSE);
+END;
+$$ LANGUAGE plpgsql;
+```
+
+---
+
+##### **Level 2: Application-Level Scoping (NestJS)**
+
+**Tenant Interceptor (Auto-Inject `office_id`):**
+
+```typescript
+// api/src/common/interceptors/tenant.interceptor.ts
+import { Injectable, NestInterceptor, ExecutionContext, CallHandler } from '@nestjs/common';
+import { Observable } from 'rxjs';
+
+@Injectable()
+export class TenantInterceptor implements NestInterceptor {
+  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+    const request = context.switchToHttp().getRequest();
+    
+    // Extract office_id from JWT payload
+    const officeId = request.user?.office_id || request.user?.officeId;
+    
+    if (!officeId) {
+      throw new UnauthorizedException('Office ID not found in token');
+    }
+
+    // Inject office_id into request for all downstream operations
+    request.officeId = officeId;
+
+    // Set PostgreSQL session variable (for RLS policies)
+    this.setDatabaseContext(officeId);
+
+    return next.handle();
+  }
+
+  private async setDatabaseContext(officeId: string): Promise<void> {
+    // This will be executed before every database query
+    // Enables Row-Level Security policies
+    const supabase = this.supabaseService.getClient();
+    await supabase.rpc('set_office_context', { p_office_id: officeId });
+  }
+}
+```
+
+**Apply Interceptor Globally:**
+
+```typescript
+// api/src/main.ts
+import { NestFactory } from '@nestjs/core';
+import { AppModule } from './app.module';
+import { TenantInterceptor } from './common/interceptors/tenant.interceptor';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+
+  // Global Multi-Tenancy Interceptor
+  app.useGlobalInterceptors(new TenantInterceptor());
+
+  await app.listen(3001);
+}
+bootstrap();
+```
+
+**Service-Level Enforcement:**
+
+```typescript
+// api/src/properties/properties.service.ts
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { SupabaseService } from '../supabase/supabase.service';
+
+@Injectable()
+export class PropertiesService {
+  constructor(private readonly supabaseService: SupabaseService) {}
+
+  async findAll(officeId: string, filters: any): Promise<any> {
+    const supabase = this.supabaseService.getClient();
+
+    // CRITICAL: Always scope by office_id
+    let query = supabase
+      .from('properties')
+      .select('*')
+      .eq('office_id', officeId) // Multi-Tenancy Enforcement
+      .is('deleted_at', null);   // Soft delete filter
+
+    // Apply additional filters
+    if (filters.propertyType) {
+      query = query.eq('property_type', filters.propertyType);
+    }
+
+    if (filters.minPrice) {
+      query = query.gte('price', filters.minPrice);
+    }
+
+    const { data, error } = await query;
+
+    if (error) throw error;
+    return data;
+  }
+
+  async findOne(officeId: string, propertyId: string): Promise<any> {
+    const supabase = this.supabaseService.getClient();
+
+    const { data, error } = await supabase
+      .from('properties')
+      .select('*')
+      .eq('id', propertyId)
+      .eq('office_id', officeId) // Multi-Tenancy Enforcement
+      .is('deleted_at', null)
+      .single();
+
+    if (error || !data) {
+      throw new NotFoundException('العقار غير موجود');
+    }
+
+    return data;
+  }
+
+  async create(officeId: string, userId: string, dto: CreatePropertyDto): Promise<any> {
+    const supabase = this.supabaseService.getClient();
+
+    // Auto-inject office_id on creation
+    const { data, error } = await supabase
+      .from('properties')
+      .insert({
+        ...dto,
+        office_id: officeId, // CRITICAL: Always inject office_id
+        created_by: userId
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
+}
+```
+
+---
+
+##### **Level 3: Frontend State Isolation**
+
+**Zustand Store للحالة العامة:**
+
+```typescript
+// Web/src/store/authStore.ts
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+
+interface AuthState {
+  user: {
+    id: string;
+    office_id: string; // Critical for Multi-Tenancy
+    role: string;
+    name: string;
+    email: string;
+  } | null;
+  accessToken: string | null;
+  setAuth: (user: any, accessToken: string) => void;
+  clearAuth: () => void;
+}
+
+export const useAuthStore = create<AuthState>()(
+  persist(
+    (set) => ({
+      user: null,
+      accessToken: null,
+      
+      setAuth: (user, accessToken) => {
+        // Validate that user has office_id
+        if (!user.office_id) {
+          throw new Error('User must belong to an office (Multi-Tenancy violation)');
+        }
+        set({ user, accessToken });
+      },
+
+      clearAuth: () => set({ user: null, accessToken: null })
+    }),
+    {
+      name: 'auth-storage'
+    }
+  )
+);
+```
+
+**API Client مع Auto-Scoping:**
+
+```typescript
+// Web/src/lib/api/properties.ts
+import api from '../axios';
+import { useAuthStore } from '@/store/authStore';
+
+export const propertiesApi = {
+  getAll: async (filters: any) => {
+    const user = useAuthStore.getState().user;
+    
+    // Multi-Tenancy: Automatically scoped by JWT
+    // Backend will extract office_id from token
+    const { data } = await api.get('/api/properties', { params: filters });
+    return data;
+  },
+
+  getOne: async (id: string) => {
+    const { data } = await api.get(`/api/properties/${id}`);
+    return data;
+  },
+
+  create: async (propertyData: any) => {
+    // No need to manually add office_id - backend extracts from JWT
+    const { data } = await api.post('/api/properties', propertyData);
+    return data;
+  }
+};
+```
+
+---
+
+##### **Level 4: File Storage Isolation**
+
+**S3/Object Storage Structure:**
+
+```
+s3://real-estate-bucket/
+├── office_94d768f1-2bcb-4a2a-9782-6f1e4bc9440c/
+│   ├── properties/
+│   │   ├── prop_abc123_image1.jpg
+│   │   └── prop_abc123_image2.jpg
+│   ├── contracts/
+│   │   └── contract_xyz789.pdf
+│   └── invoices/
+│       └── invoice_2024_001.pdf
+├── office_12345678-1234-1234-1234-123456789012/
+│   ├── properties/
+│   │   └── prop_def456_image1.jpg
+│   └── contracts/
+│       └── contract_abc123.pdf
+```
+
+**حل الملاحظة #4 (Property Image Upload - 404 Error):**
+
+**المشكلة الحالية:**
+```
+POST /api/properties/upload -> 404 Not Found
+```
+
+**السبب:**
+Endpoint غير موجود في `properties.controller.ts`.
+
+**الحل الكامل:**
+
+```typescript
+// api/src/properties/properties.controller.ts
+import { 
+  Controller, Post, UseInterceptors, UploadedFiles, 
+  Req, BadRequestException, UseGuards 
+} from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
+import { Roles } from '../auth/roles.decorator';
+import { RolesGuard } from '../auth/roles.guard';
+import { PropertiesService } from './properties.service';
+
+@Controller('properties')
+@UseGuards(RolesGuard)
+export class PropertiesController {
+  constructor(private readonly propertiesService: PropertiesService) {}
+
+  // ✅ حل الملاحظة #4: Property Image Upload Endpoint
+  @Post('upload')
+  @Roles('system_admin', 'office_admin', 'manager', 'staff')
+  @UseInterceptors(
+    FilesInterceptor('files', 10, {
+      storage: diskStorage({
+        destination: './uploads/properties',
+        filename: (req, file, callback) => {
+          const officeId = req.user?.office_id || req.user?.officeId;
+          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+          const ext = extname(file.originalname);
+          // Multi-Tenancy: Include office_id in filename
+          const filename = `${officeId}_${uniqueSuffix}${ext}`;
+          callback(null, filename);
+        }
+      }),
+      fileFilter: (req, file, callback) => {
+        // Validate file type (images only)
+        if (!file.mimetype.match(/\/(jpg|jpeg|png|webp)$/)) {
+          return callback(
+            new BadRequestException('يجب أن يكون الملف صورة (JPG, PNG, WEBP)'),
+            false
+          );
+        }
+        callback(null, true);
+      },
+      limits: {
+        fileSize: 5 * 1024 * 1024 // 5MB max per file
+      }
+    })
+  )
+  async uploadPropertyImages(
+    @Req() req: any,
+    @UploadedFiles() files: Express.Multer.File[]
+  ): Promise<any> {
+    const officeId = req.user?.office_id || req.user?.officeId;
+
+    if (!files || files.length === 0) {
+      throw new BadRequestException('لم يتم رفع أي ملفات');
+    }
+
+    // Generate public URLs for uploaded files
+    const imageUrls = files.map(file => ({
+      url: `/uploads/properties/${file.filename}`,
+      filename: file.filename,
+      size: file.size,
+      mimetype: file.mimetype
+    }));
+
+    return {
+      success: true,
+      message: `تم رفع ${files.length} صورة بنجاح`,
+      images: imageUrls
+    };
+  }
+
+  // Alternative: Upload to S3/Cloud Storage
+  @Post('upload-cloud')
+  @Roles('system_admin', 'office_admin', 'manager', 'staff')
+  @UseInterceptors(FilesInterceptor('files', 10))
+  async uploadToCloud(
+    @Req() req: any,
+    @UploadedFiles() files: Express.Multer.File[]
+  ): Promise<any> {
+    const officeId = req.user?.office_id || req.user?.officeId;
+
+    if (!files || files.length === 0) {
+      throw new BadRequestException('لم يتم رفع أي ملفات');
+    }
+
+    // Upload to S3 with Multi-Tenancy path
+    const uploadPromises = files.map(file =>
+      this.propertiesService.uploadToS3(officeId, file)
+    );
+
+    const uploadedFiles = await Promise.all(uploadPromises);
+
+    return {
+      success: true,
+      message: `تم رفع ${files.length} صورة إلى السحابة بنجاح`,
+      images: uploadedFiles
+    };
+  }
+}
+```
+
+**Properties Service - S3 Upload:**
+
+```typescript
+// api/src/properties/properties.service.ts
+import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { S3 } from 'aws-sdk';
+
+@Injectable()
+export class PropertiesService {
+  private s3: S3;
+
+  constructor(private readonly configService: ConfigService) {
+    this.s3 = new S3({
+      accessKeyId: this.configService.get('AWS_ACCESS_KEY_ID'),
+      secretAccessKey: this.configService.get('AWS_SECRET_ACCESS_KEY'),
+      region: this.configService.get('AWS_REGION', 'me-south-1') // PDPL: Saudi region
+    });
+  }
+
+  async uploadToS3(officeId: string, file: Express.Multer.File): Promise<any> {
+    const bucket = this.configService.get('AWS_S3_BUCKET');
+    const ext = extname(file.originalname);
+    const key = `${officeId}/properties/${Date.now()}-${Math.random().toString(36).substring(7)}${ext}`;
+
+    const uploadResult = await this.s3.upload({
+      Bucket: bucket,
+      Key: key,
+      Body: file.buffer,
+      ContentType: file.mimetype,
+      ACL: 'private' // Multi-Tenancy: Private by default
+    }).promise();
+
+    // Generate pre-signed URL (expires in 1 hour)
+    const signedUrl = this.s3.getSignedUrl('getObject', {
+      Bucket: bucket,
+      Key: key,
+      Expires: 3600
+    });
+
+    return {
+      key,
+      url: uploadResult.Location,
+      signedUrl,
+      bucket
+    };
+  }
+
+  async getPropertyImages(officeId: string, propertyId: string): Promise<any[]> {
+    const supabase = this.supabaseService.getClient();
+
+    const { data, error } = await supabase
+      .from('property_images')
+      .select('*')
+      .eq('property_id', propertyId)
+      .eq('office_id', officeId); // Multi-Tenancy
+
+    if (error) throw error;
+
+    // Generate fresh signed URLs for each image
+    const imagesWithSignedUrls = await Promise.all(
+      data.map(async (img) => ({
+        ...img,
+        signedUrl: this.s3.getSignedUrl('getObject', {
+          Bucket: this.configService.get('AWS_S3_BUCKET'),
+          Key: img.s3_key,
+          Expires: 3600
+        })
+      }))
+    );
+
+    return imagesWithSignedUrls;
+  }
+}
+```
+
+**Frontend Implementation:**
+
+```typescript
+// Web/src/components/properties/PropertyImageUpload.tsx
+import { useState } from 'react';
+import axios from 'axios';
+
+export const PropertyImageUpload = ({ propertyId }: { propertyId: string }) => {
+  const [uploading, setUploading] = useState(false);
+  const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+
+    setUploading(true);
+
+    const formData = new FormData();
+    Array.from(e.target.files).forEach(file => {
+      formData.append('files', file);
+    });
+
+    try {
+      const { data } = await axios.post('/api/properties/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+
+      setUploadedImages(data.images.map((img: any) => img.url));
+      alert(`تم رفع ${data.images.length} صورة بنجاح`);
+    } catch (error) {
+      console.error('Error uploading files:', error);
+      alert('فشل رفع الصور');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <label className="block">
+        <span className="text-sm font-medium">رفع صور العقار</span>
+        <input
+          type="file"
+          multiple
+          accept="image/jpeg,image/png,image/webp"
+          onChange={handleFileUpload}
+          disabled={uploading}
+          className="mt-1 block w-full text-sm text-gray-500
+            file:mr-4 file:py-2 file:px-4
+            file:rounded-full file:border-0
+            file:text-sm file:font-semibold
+            file:bg-blue-50 file:text-blue-700
+            hover:file:bg-blue-100"
+        />
+      </label>
+
+      {uploading && <p className="text-sm text-gray-600">جاري رفع الصور...</p>}
+
+      {uploadedImages.length > 0 && (
+        <div className="grid grid-cols-3 gap-4">
+          {uploadedImages.map((url, index) => (
+            <img
+              key={index}
+              src={url}
+              alt={`Property ${index + 1}`}
+              className="w-full h-32 object-cover rounded-lg"
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+```
+
+---
+
+### 3.2 نظام RBAC الكامل (Role-Based Access Control)
+
+#### 3.2.1 جدول الصلاحيات الشامل (Complete RBAC Matrix)
+
+**تعريف الأدوار الثمانية (8 Roles):**
+
+```typescript
+// api/src/auth/roles.decorator.ts
+export type AppRole = 
+  | 'system_admin'    // مدير النظام الكلي
+  | 'office_admin'    // مدير المكتب (مالك المكتب)
+  | 'manager'         // مدير العمليات
+  | 'staff'           // موظف عادي
+  | 'accountant'      // محاسب
+  | 'technician'      // فني صيانة
+  | 'owner'           // مالك عقار (عميل خارجي)
+  | 'tenant';         // مستأجر (عميل خارجي)
+```
+
+**المصفوفة الكاملة (Complete Permission Matrix):**
+
+| **Module/Feature** | **system_admin** | **office_admin** | **manager** | **staff** | **accountant** | **technician** | **owner** | **tenant** |
+|---|---|---|---|---|---|---|---|---|
+| **Offices Management** |  |  |  |  |  |  |  |  |
+| Create Office | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| View All Offices | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Edit Any Office | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Delete Office | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Edit Own Office | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **User Management** |  |  |  |  |  |  |  |  |
+| Create User (Any Office) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Create User (Own Office) | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Activate User | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Deactivate User | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Edit User Permissions | ✅ | ✅ (Own Office) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Delete User | ✅ | ✅ (Own Office) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| View Audit Logs | ✅ | ✅ (Own Office) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Properties** |  |  |  |  |  |  |  |  |
+| View Properties | ✅ | ✅ | ✅ | ✅ | ✅ (Limited) | ✅ (Assigned) | ✅ (Own) | ✅ (Rented) |
+| Create Property | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ (Own) | ❌ |
+| Edit Property | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ (Own) | ❌ |
+| Delete Property | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Upload Property Images | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ (Own) | ❌ |
+| Export Properties | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ (Own) | ❌ |
+| Import Properties (Excel) | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Customers** |  |  |  |  |  |  |  |  |
+| View Customers | ✅ | ✅ | ✅ | ✅ | ✅ (Limited) | ❌ | ❌ | ❌ |
+| Create Customer | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Edit Customer | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Delete Customer | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| View Customer Financial Data | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| Export Customers | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **Appointments** |  |  |  |  |  |  |  |  |
+| View Appointments | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ (Assigned) | ✅ (Own) | ✅ (Own) |
+| Create Appointment | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ |
+| Edit Appointment | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ (Own) | ✅ (Own) |
+| Delete Appointment | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Contracts** |  |  |  |  |  |  |  |  |
+| View Contracts | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ (Own) | ✅ (Own) |
+| Create Contract | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Edit Contract | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Terminate Contract | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Export Contract PDF | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ (Own) | ✅ (Own) |
+| Register with Ejar | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Financial/Payments** |  |  |  |  |  |  |  |  |
+| View Payments | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ (Own) | ✅ (Own) |
+| Record Payment | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| Generate Invoice | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| View Financial Reports | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ (Own) | ❌ |
+| Export Financial Data | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| **Maintenance** |  |  |  |  |  |  |  |  |
+| View Maintenance Requests | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ (Own) | ✅ (Own) |
+| Create Maintenance Request | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ |
+| Assign Technician | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Update Request Status | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ (Assigned) | ❌ | ❌ |
+| Close Request | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ (Assigned) | ❌ | ❌ |
+| **Analytics/Dashboard** |  |  |  |  |  |  |  |  |
+| View Dashboard | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ (Limited) | ✅ (Own) | ✅ (Own) |
+| View Advanced Analytics | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| Export Analytics Report | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| **System Settings** |  |  |  |  |  |  |  |  |
+| View System Settings | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Edit System Settings | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| View Office Settings | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Edit Office Settings | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+
+---
+
+#### 3.2.2 تطبيق الصلاحيات المتقدمة (Advanced Permissions)
+
+**حل الملاحظة #8: Granular Column & Row Permissions**
+
+**Database Schema للصلاحيات المخصصة:**
+
+```sql
+-- Custom Permissions Structure (Stored in user_permissions.permissions JSONB)
+CREATE TYPE permission_level AS ENUM ('none', 'read', 'write', 'full');
+
+-- Example permissions JSONB structure
+{
+  "properties": {
+    "access": "full",  -- 'none', 'read', 'write', 'full'
+    "fields": {
+      "title": "read",
+      "price": "none",  -- Cannot see price column
+      "owner_name": "read",
+      "city": "full"
+    },
+    "actions": {
+      "create": true,
+      "edit": true,
+      "delete": false,
+      "export": true
+    }
+  },
+  "customers": {
+    "access": "read",
+    "fields": {
+      "name": "read",
+      "phone": "read",
+      "national_id": "none",  -- Cannot see national ID
+      "budget": "none"
+    },
+    "actions": {
+      "create": false,
+      "edit": false,
+      "delete": false,
+      "export": true
+    }
+  },
+  "contracts": {
+    "access": "none"  -- No access to contracts module
+  }
+}
+```
+
+**Backend Guard للتحقق من الصلاحيات:**
+
+```typescript
+// api/src/auth/permissions.guard.ts
+import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+
+export const PERMISSION_KEY = 'permission';
+export const Permission = (module: string, action: string) => 
+  SetMetadata(PERMISSION_KEY, { module, action });
+
+@Injectable()
+export class PermissionsGuard implements CanActivate {
+  constructor(private reflector: Reflector) {}
+
+  canActivate(context: ExecutionContext): boolean {
+    const requiredPermission = this.reflector.getAllAndOverride<{ module: string, action: string }>(
+      PERMISSION_KEY,
+      [context.getHandler(), context.getClass()]
+    );
+
+    if (!requiredPermission) {
+      return true; // No specific permission required
+    }
+
+    const request = context.switchToHttp().getRequest();
+    const user = request.user;
+
+    // Check role-based permissions first
+    if (this.hasRolePermission(user.role, requiredPermission)) {
+      return true;
+    }
+
+    // Check custom permissions (JSONB)
+    if (this.hasCustomPermission(user.permissions, requiredPermission)) {
+      return true;
+    }
+
+    throw new ForbiddenException(
+      `ليس لديك الصلاحية لتنفيذ هذه العملية (${requiredPermission.module}.${requiredPermission.action})`
+    );
+  }
+
+  private hasRolePermission(role: string, permission: { module: string, action: string }): boolean {
+    const rolePermissions = {
+      'system_admin': ['*'], // Full access to everything
+      'office_admin': ['properties.*', 'customers.*', 'appointments.*', 'contracts.*', 'users.create', 'users.edit'],
+      'manager': ['properties.*', 'customers.*', 'appointments.*', 'contracts.*'],
+      'staff': ['properties.read', 'properties.write', 'customers.read', 'customers.write', 'appointments.*'],
+      'accountant': ['properties.read', 'customers.read', 'contracts.read', 'payments.*', 'reports.*']
+    };
+
+    const allowedPermissions = rolePermissions[role] || [];
+
+    return allowedPermissions.includes('*') ||
+           allowedPermissions.includes(`${permission.module}.*`) ||
+           allowedPermissions.includes(`${permission.module}.${permission.action}`);
+  }
+
+  private hasCustomPermission(customPermissions: any, permission: { module: string, action: string }): boolean {
+    if (!customPermissions || typeof customPermissions !== 'object') {
+      return false;
+    }
+
+    const modulePermissions = customPermissions[permission.module];
+    if (!modulePermissions) {
+      return false;
+    }
+
+    // Check if access level allows the action
+    if (modulePermissions.access === 'none') {
+      return false;
+    }
+
+    if (modulePermissions.access === 'full') {
+      return true;
+    }
+
+    // Check specific action permission
+    return modulePermissions.actions?.[permission.action] === true;
+  }
+}
+```
+
+**تطبيق الـ Guard على Controllers:**
+
+```typescript
+// api/src/properties/properties.controller.ts
+import { Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { RolesGuard } from '../auth/roles.guard';
+import { PermissionsGuard, Permission } from '../auth/permissions.guard';
+
+@Controller('properties')
+@UseGuards(RolesGuard, PermissionsGuard)
+export class PropertiesController {
+  
+  @Get()
+  @Permission('properties', 'read')
+  async list(@Req() req: any) {
+    return this.propertiesService.findAll(req.user.office_id);
+  }
+
+  @Post()
+  @Permission('properties', 'create')
+  async create(@Req() req: any, @Body() dto: CreatePropertyDto) {
+    return this.propertiesService.create(req.user.office_id, req.user.id, dto);
+  }
+
+  @Delete(':id')
+  @Permission('properties', 'delete')
+  async delete(@Req() req: any, @Param('id') id: string) {
+    return this.propertiesService.softDelete(req.user.office_id, id);
+  }
+}
+```
+
+**Field-Level Filtering (Column Permissions):**
+
+```typescript
+// api/src/properties/properties.service.ts
+import { Injectable } from '@nestjs/common';
+
+@Injectable()
+export class PropertiesService {
+  async findAll(officeId: string, user: any): Promise<any> {
+    const supabase = this.supabaseService.getClient();
+
+    const { data, error } = await supabase
+      .from('properties')
+      .select('*')
+      .eq('office_id', officeId)
+      .is('deleted_at', null);
+
+    if (error) throw error;
+
+    // Apply field-level permissions
+    return data.map(property => this.filterFields(property, user));
+  }
+
+  private filterFields(property: any, user: any): any {
+    const permissions = user.permissions?.properties?.fields || {};
+
+    // If user has full access, return all fields
+    if (user.role === 'system_admin' || user.role === 'office_admin') {
+      return property;
+    }
+
+    // Filter based on field-level permissions
+    const filteredProperty = {};
+
+    Object.keys(property).forEach(field => {
+      const fieldPermission = permissions[field];
+
+      // If field permission is 'none', exclude it
+      if (fieldPermission === 'none') {
+        return;
+      }
+
+      // If field permission is 'read', 'write', or 'full', include it
+      if (fieldPermission === 'read' || fieldPermission === 'write' || fieldPermission === 'full') {
+        filteredProperty[field] = property[field];
+      }
+
+      // If no specific permission defined, include by default (for backward compatibility)
+      if (!fieldPermission) {
+        filteredProperty[field] = property[field];
+      }
+    });
+
+    return filteredProperty;
+  }
+}
+```
+
+---
+
+#### 3.2.3 إدارة المستخدمين من مدير المكتب
+
+**حل الملاحظة #8: Office Manager User Management**
+
+**Endpoint لإدارة المستخدمين:**
+
+```typescript
+// api/src/users/users.controller.ts
+import { Controller, Get, Post, Patch, Delete, Body, Param, Req, UseGuards } from '@nestjs/common';
+import { Roles } from '../auth/roles.decorator';
+import { RolesGuard } from '../auth/roles.guard';
+import { UsersService } from './users.service';
+
+@Controller('users')
+@UseGuards(RolesGuard)
+export class UsersController {
+  constructor(private readonly usersService: UsersService) {}
+
+  // View users in own office
+  @Get()
+  @Roles('system_admin', 'office_admin')
+  async listUsers(@Req() req: any) {
+    const officeId = req.user.role === 'system_admin' ? null : req.user.office_id;
+    return this.usersService.findAll(officeId);
+  }
+
+  // Create user (Office Admin can only create in their office)
+  @Post()
+  @Roles('system_admin', 'office_admin')
+  async createUser(@Req() req: any, @Body() dto: CreateUserDto) {
+    const officeId = req.user.role === 'system_admin' ? dto.office_id : req.user.office_id;
+
+    // Validate subscription limit
+    if (req.user.role === 'office_admin') {
+      await this.usersService.checkUserLimit(officeId);
+    }
+
+    return this.usersService.create(officeId, dto);
+  }
+
+  // Edit user permissions (Office Admin can only edit users in their office)
+  @Patch(':id/permissions')
+  @Roles('system_admin', 'office_admin')
+  async updatePermissions(@Req() req: any, @Param('id') userId: string, @Body() dto: UpdatePermissionsDto) {
+    // Security check: Office Admin can only edit users in their office
+    if (req.user.role === 'office_admin') {
+      await this.usersService.verifyUserBelongsToOffice(userId, req.user.office_id);
+    }
+
+    return this.usersService.updatePermissions(userId, dto);
+  }
+
+  // Activate/Deactivate user
+  @Patch(':id/status')
+  @Roles('system_admin', 'office_admin')
+  async toggleUserStatus(@Req() req: any, @Param('id') userId: string, @Body() dto: { is_active: boolean }) {
+    // Security check
+    if (req.user.role === 'office_admin') {
+      await this.usersService.verifyUserBelongsToOffice(userId, req.user.office_id);
+    }
+
+    return this.usersService.toggleStatus(userId, dto.is_active);
+  }
+
+  // Delete user
+  @Delete(':id')
+  @Roles('system_admin', 'office_admin')
+  async deleteUser(@Req() req: any, @Param('id') userId: string) {
+    // Security check
+    if (req.user.role === 'office_admin') {
+      await this.usersService.verifyUserBelongsToOffice(userId, req.user.office_id);
+    }
+
+    return this.usersService.softDelete(userId);
+  }
+}
+```
+
+**Users Service:**
+
+```typescript
+// api/src/users/users.service.ts
+import { Injectable, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { SupabaseService } from '../supabase/supabase.service';
+import * as bcrypt from 'bcrypt';
+
+@Injectable()
+export class UsersService {
+  constructor(private readonly supabaseService: SupabaseService) {}
+
+  async findAll(officeId: string | null): Promise<any> {
+    const supabase = this.supabaseService.getClient();
+
+    let query = supabase
+      .from('user_permissions')
+      .select('id, name, email, phone, role, is_active, last_login, created_at');
+
+    // System Admin: See all users across all offices
+    // Office Admin: See only users in their office
+    if (officeId) {
+      query = query.eq('office_id', officeId);
+    }
+
+    const { data, error } = await query;
+
+    if (error) throw error;
+    return data;
+  }
+
+  async create(officeId: string, dto: CreateUserDto): Promise<any> {
+    const supabase = this.supabaseService.getClient();
+
+    // Check if user limit reached
+    await this.checkUserLimit(officeId);
+
+    // Hash password
+    const passwordHash = await bcrypt.hash(dto.password, 10);
+
+    const { data, error } = await supabase
+      .from('user_permissions')
+      .insert({
+        office_id: officeId,
+        name: dto.name,
+        email: dto.email,
+        phone: dto.phone,
+        role: dto.role,
+        password_hash: passwordHash,
+        is_active: false, // Created but not activated (requires admin approval)
+        permissions: dto.permissions || {}
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return {
+      success: true,
+      message: 'تم إنشاء المستخدم بنجاح. يجب تفعيل الحساب من قبل المسؤول.',
+      user: { ...data, password_hash: undefined }
+    };
+  }
+
+  async checkUserLimit(officeId: string): Promise<void> {
+    const supabase = this.supabaseService.getClient();
+
+    // Get office subscription info
+    const { data: office, error: officeError } = await supabase
+      .from('offices')
+      .select('subscription_plan, max_users')
+      .eq('id', officeId)
+      .single();
+
+    if (officeError || !office) {
+      throw new BadRequestException('المكتب غير موجود');
+    }
+
+    // Count active users in office
+    const { count, error: countError } = await supabase
+      .from('user_permissions')
+      .select('*', { count: 'exact', head: true })
+      .eq('office_id', officeId)
+      .eq('is_active', true);
+
+    if (countError) throw countError;
+
+    if (count >= office.max_users) {
+      throw new ForbiddenException(
+        `تم تجاوز الحد الأقصى للمستخدمين (${office.max_users}). يرجى الترقية إلى خطة أعلى أو التواصل مع الدعم.`
+      );
+    }
+  }
+
+  async verifyUserBelongsToOffice(userId: string, officeId: string): Promise<void> {
+    const supabase = this.supabaseService.getClient();
+
+    const { data: user, error } = await supabase
+      .from('user_permissions')
+      .select('office_id')
+      .eq('id', userId)
+      .single();
+
+    if (error || !user) {
+      throw new ForbiddenException('المستخدم غير موجود');
+    }
+
+    if (user.office_id !== officeId) {
+      throw new ForbiddenException('لا يمكنك تعديل مستخدم من مكتب آخر');
+    }
+  }
+
+  async updatePermissions(userId: string, dto: UpdatePermissionsDto): Promise<any> {
+    const supabase = this.supabaseService.getClient();
+
+    const { data, error } = await supabase
+      .from('user_permissions')
+      .update({
+        role: dto.role,
+        permissions: dto.permissions
+      })
+      .eq('id', userId)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return {
+      success: true,
+      message: 'تم تحديث صلاحيات المستخدم بنجاح',
+      user: { ...data, password_hash: undefined }
+    };
+  }
+
+  async toggleStatus(userId: string, isActive: boolean): Promise<any> {
+    const supabase = this.supabaseService.getClient();
+
+    const { data, error } = await supabase
+      .from('user_permissions')
+      .update({ is_active: isActive })
+      .eq('id', userId)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return {
+      success: true,
+      message: isActive ? 'تم تفعيل المستخدم بنجاح' : 'تم إلغاء تفعيل المستخدم',
+      user: { ...data, password_hash: undefined }
+    };
+  }
+
+  async softDelete(userId: string): Promise<any> {
+    const supabase = this.supabaseService.getClient();
+
+    const { error } = await supabase
+      .from('user_permissions')
+      .update({ is_active: false, deleted_at: new Date().toISOString() })
+      .eq('id', userId);
+
+    if (error) throw error;
+
+    return {
+      success: true,
+      message: 'تم حذف المستخدم بنجاح'
+    };
+  }
+}
+```
+
+---
+
+### 3.3 حل المشاكل الفنية من ملاحظات المستخدم
+
+#### 3.3.1 حل الملاحظة #5 (Export Error - 401 Unauthorized)
+
+**المشكلة:**
+```
+GET /api/properties/export?fields[]=title&fields[]=price
+401 Unauthorized: "رمز الدخول منتهي أو غير صالح"
+```
+
+**السبب:**
+Export endpoint لا يتعامل مع silent token refresh بشكل صحيح عند استخدام query parameters.
+
+**الحل الكامل:**
+
+```typescript
+// api/src/properties/properties.controller.ts
+import { Controller, Get, Query, Req, Res, UseGuards, StreamableFile } from '@nestjs/common';
+import { Response } from 'express';
+import * as ExcelJS from 'exceljs';
+import { Roles } from '../auth/roles.decorator';
+import { RolesGuard } from '../auth/roles.guard';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+
+@Controller('properties')
+@UseGuards(JwtAuthGuard, RolesGuard) // Ensure JWT is validated first
+export class PropertiesController {
+  
+  // ✅ حل الملاحظة #5: Export with Proper Authentication
+  @Get('export')
+  @Roles('system_admin', 'office_admin', 'manager', 'staff', 'accountant')
+  async exportProperties(
+    @Req() req: any,
+    @Query('fields') fields: string[],
+    @Res({ passthrough: true }) res: Response
+  ): Promise<StreamableFile> {
+    const officeId = req.user?.office_id || req.user?.officeId;
+
+    if (!officeId) {
+      throw new UnauthorizedException('يجب تسجيل الدخول لتصدير البيانات');
+    }
+
+    // Fetch properties
+    const properties = await this.propertiesService.findAll(officeId, {});
+
+    // Generate Excel file
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('العقارات');
+
+    // Define columns based on requested fields
+    const allFields = {
+      'title': 'العنوان',
+      'property_type': 'نوع العقار',
+      'listing_type': 'نوع الإعلان',
+      'price': 'السعر',
+      'city': 'المدينة',
+      'district': 'الحي',
+      'bedrooms': 'عدد الغرف',
+      'bathrooms': 'عدد الحمامات',
+      'area': 'المساحة',
+      'status': 'الحالة'
+    };
+
+    // Filter columns based on requested fields
+    const selectedFields = fields && fields.length > 0 
+      ? fields 
+      : Object.keys(allFields);
+
+    worksheet.columns = selectedFields.map(field => ({
+      header: allFields[field] || field,
+      key: field,
+      width: 20
+    }));
+
+    // Add rows
+    properties.forEach(property => {
+      const row = {};
+      selectedFields.forEach(field => {
+        row[field] = property[field] || '';
+      });
+      worksheet.addRow(row);
+    });
+
+    // Style header row
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' }
+    };
+
+    // Generate buffer
+    const buffer = await workbook.xlsx.writeBuffer();
+
+    // Set response headers
+    res.set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename="properties_${Date.now()}.xlsx"`,
+      'Content-Length': buffer.length
+    });
+
+    return new StreamableFile(Buffer.from(buffer));
+  }
+}
+```
+
+**Frontend Fix (Token Handling):**
+
+```typescript
+// Web/src/lib/api/properties.ts
+import api from '../axios';
+
+export const propertiesApi = {
+  export: async (fields: string[]) => {
+    try {
+      const params = new URLSearchParams();
+      fields.forEach(field => params.append('fields[]', field));
+
+      const response = await api.get(`/api/properties/export?${params.toString()}`, {
+        responseType: 'blob' // Important for file download
+      });
+
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `properties_${Date.now()}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      return { success: true };
+    } catch (error) {
+      // The Axios interceptor will handle 401 and retry with refreshed token
+      console.error('Export error:', error);
+      throw error;
+    }
+  }
+};
+```
+
+---
+
+#### 3.3.2 حل الملاحظة #6 (Import Error - Select.Item Empty Value)
+
+**المشكلة:**
+```
+Error: A <Select.Item /> must have a value prop that is not an empty string.
+```
+
+**السبب:**
+Component `ColumnMatcher` في الـ Import UI يحاول رسم `<Select.Item>` بقيمة فارغة.
+
+**الحل:**
+
+```typescript
+// Web/src/components/properties/ImportProperties.tsx
+import { useState } from 'react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import * as XLSX from 'xlsx';
+
+export const ImportProperties = () => {
+  const [excelColumns, setExcelColumns] = useState<string[]>([]);
+  const [columnMapping, setColumnMapping] = useState<Record<string, string>>({});
+
+  const systemFields = [
+    { value: 'title', label: 'العنوان' },
+    { value: 'property_type', label: 'نوع العقار' },
+    { value: 'listing_type', label: 'نوع الإعلان' },
+    { value: 'price', label: 'السعر' },
+    { value: 'city', label: 'المدينة' },
+    { value: 'district', label: 'الحي' },
+    { value: 'bedrooms', label: 'عدد الغرف' },
+    { value: 'bathrooms', label: 'عدد الحمامات' },
+    { value: 'area', label: 'المساحة (م²)' }
+  ];
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const data = new Uint8Array(event.target?.result as ArrayBuffer);
+      const workbook = XLSX.read(data, { type: 'array' });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+      // Extract first row as headers
+      const headers = (jsonData[0] as string[]).filter(h => h && h.trim() !== ''); // ✅ Filter empty values
+      setExcelColumns(headers);
+
+      // Auto-match columns based on similarity
+      const autoMapping = autoMatchColumns(headers, systemFields);
+      setColumnMapping(autoMapping);
+    };
+
+    reader.readAsArrayBuffer(file);
+  };
+
+  const autoMatchColumns = (excelCols: string[], systemCols: typeof systemFields): Record<string, string> => {
+    const mapping: Record<string, string> = {};
+
+    excelCols.forEach(excelCol => {
+      const normalizedExcelCol = excelCol.toLowerCase().trim();
+
+      // Find best match using Levenshtein distance or exact match
+      const bestMatch = systemCols.find(sysCol => {
+        const normalizedSysLabel = sysCol.label.toLowerCase();
+        return normalizedSysLabel.includes(normalizedExcelCol) || 
+               normalizedExcelCol.includes(normalizedSysLabel);
+      });
+
+      if (bestMatch) {
+        mapping[excelCol] = bestMatch.value;
+      }
+    });
+
+    return mapping;
+  };
+
+  return (
+    <div className="space-y-6">
+      <h2 className="text-2xl font-bold">استيراد العقارات من Excel</h2>
+
+      <div>
+        <label className="block text-sm font-medium mb-2">
+          اختر ملف Excel
+        </label>
+        <input
+          type="file"
+          accept=".xlsx,.xls"
+          onChange={handleFileUpload}
+          className="block w-full text-sm text-gray-500
+            file:mr-4 file:py-2 file:px-4
+            file:rounded-full file:border-0
+            file:text-sm file:font-semibold
+            file:bg-blue-50 file:text-blue-700
+            hover:file:bg-blue-100"
+        />
+      </div>
+
+      {excelColumns.length > 0 && (
+        <div>
+          <h3 className="text-lg font-semibold mb-4">مطابقة الأعمدة</h3>
+          <div className="space-y-3">
+            {excelColumns.map(excelCol => (
+              <div key={excelCol} className="flex items-center gap-4">
+                <div className="w-1/3">
+                  <span className="text-sm font-medium">{excelCol}</span>
+                </div>
+                <div className="w-1/3">
+                  <Select
+                    value={columnMapping[excelCol] || 'skip'} // ✅ Default to 'skip' instead of empty string
+                    onValueChange={(value) => {
+                      setColumnMapping(prev => ({
+                        ...prev,
+                        [excelCol]: value
+                      }));
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="اختر حقل" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="skip">تخطي</SelectItem> {/* ✅ Added "Skip" option */}
+                      {systemFields.map(field => (
+                        <SelectItem key={field.value} value={field.value}>
+                          {field.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+```
+
+---
+
+#### 3.3.3 حل الملاحظة #9 (Customers Tab Error - "property tags should not exist")
+
+**المشكلة:**
+```
+GET /api/customers?page=1&limit=20&search=&tags=
+400 Bad Request: "property tags should not exist"
+```
+
+**السبب:**
+Frontend يرسل query parameter `tags` ولكن الـ DTO الخاص بـ Customers لا يقبل هذا الحقل.
+
+**الحل:**
+
+```typescript
+// api/src/customers/dto/filter-customers.dto.ts
+import { IsOptional, IsString, IsInt, Min, IsArray } from 'class-validator';
+import { Type } from 'class-transformer';
+
+export class FilterCustomersDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number = 1;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  limit?: number = 20;
+
+  @IsOptional()
+  @IsString()
+  search?: string;
+
+  @IsOptional()
+  @IsString()
+  status?: string; // 'new', 'contacted', 'interested', 'not_interested', 'converted'
+
+  @IsOptional()
+  @IsString()
+  type?: string; // 'individual', 'corporate'
+
+  // ✅ Remove or ignore 'tags' field if it's sent accidentally
+  // Do NOT include @IsArray() or validation for 'tags'
+}
+```
+
+**Frontend Fix:**
+
+```typescript
+// Web/src/lib/api/customers.ts
+import api from '../axios';
+
+export const customersApi = {
+  getAll: async (filters: { page?: number; limit?: number; search?: string; status?: string; type?: string }) => {
+    // ✅ Don't send 'tags' parameter
+    const cleanedFilters = {
+      page: filters.page || 1,
+      limit: filters.limit || 20,
+      search: filters.search || '',
+      ...(filters.status && { status: filters.status }),
+      ...(filters.type && { type: filters.type })
+    };
+
+    const { data } = await api.get('/api/customers', { params: cleanedFilters });
+    return data;
+  }
+};
+```
+
+---
+
+#### 3.3.4 حل الملاحظة #10 & #11 (Appointments Errors - 403 Forbidden & 401 Unauthorized)
+
+**المشكلة #10:**
+```
+POST /api/appointments
+403 Forbidden: "ليس لديك الصلاحية اللازمة لتنفيذ هذه العملية"
+```
+
+**المشكلة #11:**
+```
+GET /api/appointments?page=1&limit=50&search=
+401 Unauthorized: "يجب تسجيل الدخول"
+```
+
+**السبب:**
+AppointmentsController لا يحتوي على الـ `@Roles` decorator الصحيح.
+
+**الحل:**
+
+```typescript
+// api/src/appointments/appointments.controller.ts
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Req, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Roles } from '../auth/roles.decorator';
+import { RolesGuard } from '../auth/roles.guard';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { AppointmentsService } from './appointments.service';
+
+@ApiTags('Appointments')
+@ApiBearerAuth()
+@Controller('appointments')
+@UseGuards(JwtAuthGuard, RolesGuard) // ✅ Ensure both guards are applied
+export class AppointmentsController {
+  constructor(private readonly appointmentsService: AppointmentsService) {}
+
+  // ✅ حل الملاحظة #11: Get appointments with proper auth
+  @Get()
+  @Roles('system_admin', 'office_admin', 'manager', 'staff') // ✅ Added roles
+  async list(@Req() req: any, @Query() query: any) {
+    const officeId = req.user?.office_id || req.user?.officeId;
+    
+    if (!officeId) {
+      throw new UnauthorizedException('يجب تسجيل الدخول للوصول إلى المواعيد');
+    }
+
+    return this.appointmentsService.findAll(officeId, query);
+  }
+
+  // ✅ حل الملاحظة #10: Create appointment with proper roles
+  @Post()
+  @Roles('system_admin', 'office_admin', 'manager', 'staff') // ✅ Added roles
+  async create(@Req() req: any, @Body() dto: CreateAppointmentDto) {
+    const officeId = req.user?.office_id || req.user?.officeId;
+    const userId = req.user?.id || req.user?.user_id;
+
+    if (!officeId) {
+      throw new UnauthorizedException('يجب تسجيل الدخول لإنشاء موعد');
+    }
+
+    return this.appointmentsService.create(officeId, userId, dto);
+  }
+
+  @Patch(':id')
+  @Roles('system_admin', 'office_admin', 'manager', 'staff')
+  async update(@Req() req: any, @Param('id') id: string, @Body() dto: UpdateAppointmentDto) {
+    const officeId = req.user?.office_id || req.user?.officeId;
+    return this.appointmentsService.update(officeId, id, dto);
+  }
+
+  @Delete(':id')
+  @Roles('system_admin', 'office_admin', 'manager')
+  async delete(@Req() req: any, @Param('id') id: string) {
+    const officeId = req.user?.office_id || req.user?.officeId;
+    return this.appointmentsService.softDelete(officeId, id);
+  }
+}
+```
+
+**Appointments Service:**
+
+```typescript
+// api/src/appointments/appointments.service.ts
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { SupabaseService } from '../supabase/supabase.service';
+
+@Injectable()
+export class AppointmentsService {
+  constructor(private readonly supabaseService: SupabaseService) {}
+
+  async findAll(officeId: string, filters: any): Promise<any> {
+    const supabase = this.supabaseService.getClient();
+
+    let query = supabase
+      .from('appointments')
+      .select(`
+        *,
+        properties (id, title, property_type, city),
+        customers (id, name, phone)
+      `)
+      .eq('office_id', officeId) // Multi-Tenancy
+      .is('deleted_at', null)
+      .order('scheduled_at', { ascending: true });
+
+    // Apply filters
+    if (filters.search) {
+      query = query.or(`notes.ilike.%${filters.search}%`);
+    }
+
+    if (filters.status) {
+      query = query.eq('status', filters.status);
+    }
+
+    // Pagination
+    const page = parseInt(filters.page) || 1;
+    const limit = parseInt(filters.limit) || 50;
+    const offset = (page - 1) * limit;
+
+    query = query.range(offset, offset + limit - 1);
+
+    const { data, error } = await query;
+
+    if (error) throw error;
+
+    return {
+      data,
+      meta: {
+        page,
+        limit,
+        total: data.length
+      }
+    };
+  }
+
+  async create(officeId: string, userId: string, dto: CreateAppointmentDto): Promise<any> {
+    const supabase = this.supabaseService.getClient();
+
+    const { data, error } = await supabase
+      .from('appointments')
+      .insert({
+        ...dto,
+        office_id: officeId, // Multi-Tenancy
+        created_by: userId,
+        status: 'scheduled'
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return {
+      success: true,
+      message: 'تم إنشاء الموعد بنجاح',
+      appointment: data
+    };
+  }
+
+  async update(officeId: string, appointmentId: string, dto: UpdateAppointmentDto): Promise<any> {
+    const supabase = this.supabaseService.getClient();
+
+    const { data, error } = await supabase
+      .from('appointments')
+      .update(dto)
+      .eq('id', appointmentId)
+      .eq('office_id', officeId) // Multi-Tenancy
+      .select()
+      .single();
+
+    if (error || !data) {
+      throw new NotFoundException('الموعد غير موجود');
+    }
+
+    return {
+      success: true,
+      message: 'تم تحديث الموعد بنجاح',
+      appointment: data
+    };
+  }
+
+  async softDelete(officeId: string, appointmentId: string): Promise<any> {
+    const supabase = this.supabaseService.getClient();
+
+    const { error } = await supabase
+      .from('appointments')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', appointmentId)
+      .eq('office_id', officeId);
+
+    if (error) throw error;
+
+    return {
+      success: true,
+      message: 'تم حذف الموعد بنجاح'
+    };
+  }
+}
+```
+
+---
+
+#### 3.3.5 حل الملاحظة #12 (Notification Dismiss Button)
+
+**المشكلة:**
+الإشعارات لا يمكن إزالتها من الشاشة.
+
+**الحل:**
+
+```typescript
+// Web/src/components/ui/toast.tsx
+import { useState, useEffect } from 'react';
+import { X } from 'lucide-react';
+
+interface ToastProps {
+  message: string;
+  type?: 'success' | 'error' | 'info' | 'warning';
+  duration?: number;
+  onClose?: () => void;
+}
+
+export const Toast = ({ message, type = 'info', duration = 5000, onClose }: ToastProps) => {
+  const [visible, setVisible] = useState(true);
+
+  useEffect(() => {
+    if (duration > 0) {
+      const timer = setTimeout(() => {
+        handleClose();
+      }, duration);
+
+      return () => clearTimeout(timer);
+    }
+  }, [duration]);
+
+  const handleClose = () => {
+    setVisible(false);
+    if (onClose) {
+      onClose();
+    }
+  };
+
+  if (!visible) return null;
+
+  const bgColor = {
+    success: 'bg-green-500',
+    error: 'bg-red-500',
+    info: 'bg-blue-500',
+    warning: 'bg-yellow-500'
+  }[type];
+
+  return (
+    <div className={`fixed bottom-4 right-4 z-50 ${bgColor} text-white px-6 py-4 rounded-lg shadow-lg flex items-center gap-4 min-w-[300px] max-w-[500px]`}>
+      <span className="flex-1">{message}</span>
+      {/* ✅ حل الملاحظة #12: Dismiss button */}
+      <button
+        onClick={handleClose}
+        className="flex-shrink-0 hover:bg-white/20 rounded-full p-1 transition"
+        aria-label="إغلاق"
+      >
+        <X className="w-5 h-5" />
+      </button>
+    </div>
+  );
+};
+
+// Toast Container with Multiple Toasts
+export const ToastContainer = () => {
+  const { toasts, removeToast } = useToastStore();
+
+  return (
+    <div className="fixed bottom-4 right-4 z-50 space-y-2">
+      {toasts.map(toast => (
+        <Toast
+          key={toast.id}
+          message={toast.message}
+          type={toast.type}
+          duration={toast.duration}
+          onClose={() => removeToast(toast.id)}
+        />
+      ))}
+    </div>
+  );
+};
+```
+
+**Toast Store (Zustand):**
+
+```typescript
+// Web/src/store/toastStore.ts
+import { create } from 'zustand';
+
+interface Toast {
+  id: string;
+  message: string;
+  type: 'success' | 'error' | 'info' | 'warning';
+  duration: number;
+}
+
+interface ToastStore {
+  toasts: Toast[];
+  addToast: (toast: Omit<Toast, 'id'>) => void;
+  removeToast: (id: string) => void;
+}
+
+export const useToastStore = create<ToastStore>((set) => ({
+  toasts: [],
+  
+  addToast: (toast) => {
+    const id = Math.random().toString(36).substring(7);
+    set((state) => ({
+      toasts: [...state.toasts, { ...toast, id }]
+    }));
+  },
+
+  removeToast: (id) => {
+    set((state) => ({
+      toasts: state.toasts.filter(t => t.id !== id)
+    }));
+  }
+}));
+```
+
+---
+
+#### 3.3.6 حل الملاحظة #13 & #14 (Favorites & Reports - 404)
+
+**المشكلة:**
+```
+GET /dashboard/favorites -> 404 Not Found
+GET /dashboard/reports -> 404 Not Found
+```
+
+**السبب:**
+هذه الـ Routes غير موجودة في Frontend Router.
+
+**الحل:**
+
+```typescript
+// Web/src/app/dashboard/favorites/page.tsx
+'use client';
+
+import { useState, useEffect } from 'react';
+import { Star, Trash2 } from 'lucide-react';
+import { useAuthStore } from '@/store/authStore';
+import api from '@/lib/axios';
+
+export default function FavoritesPage() {
+  const [favorites, setFavorites] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const user = useAuthStore(state => state.user);
+
+  useEffect(() => {
+    fetchFavorites();
+  }, []);
+
+  const fetchFavorites = async () => {
+    try {
+      const { data } = await api.get('/api/favorites');
+      setFavorites(data);
+    } catch (error) {
+      console.error('Error fetching favorites:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const removeFavorite = async (id: string) => {
+    try {
+      await api.delete(`/api/favorites/${id}`);
+      setFavorites(prev => prev.filter(f => f.id !== id));
+    } catch (error) {
+      console.error('Error removing favorite:', error);
+    }
+  };
+
+  if (loading) {
+    return <div className="p-6">جاري التحميل...</div>;
+  }
+
+  return (
+    <div className="p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">المفضلة</h1>
+        <span className="text-sm text-gray-600">{favorites.length} عنصر</span>
+      </div>
+
+      {favorites.length === 0 ? (
+        <div className="text-center py-12">
+          <Star className="w-16 h-16 mx-auto text-gray-300 mb-4" />
+          <p className="text-gray-600">لا توجد عقارات في المفضلة</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {favorites.map(favorite => (
+            <div key={favorite.id} className="border rounded-lg p-4 hover:shadow-lg transition">
+              <div className="flex items-start justify-between mb-3">
+                <h3 className="font-semibold text-lg">{favorite.property.title}</h3>
+                <button
+                  onClick={() => removeFavorite(favorite.id)}
+                  className="text-red-500 hover:text-red-700"
+                >
+                  <Trash2 className="w-5 h-5" />
+                </button>
+              </div>
+              <p className="text-gray-600 text-sm mb-2">{favorite.property.city} - {favorite.property.district}</p>
+              <p className="text-blue-600 font-bold">{favorite.property.price} ريال</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+```typescript
+// Web/src/app/dashboard/reports/page.tsx
+'use client';
+
+import { useState } from 'react';
+import { BarChart, FileText, Download, Calendar } from 'lucide-react';
+import api from '@/lib/axios';
+
+export default function ReportsPage() {
+  const [reportType, setReportType] = useState<string>('properties');
+  const [dateRange, setDateRange] = useState({ from: '', to: '' });
+  const [generating, setGenerating] = useState(false);
+
+  const reportTypes = [
+    { value: 'properties', label: 'تقرير العقارات', icon: BarChart },
+    { value: 'contracts', label: 'تقرير العقود', icon: FileText },
+    { value: 'financial', label: 'التقرير المالي', icon: Download },
+    { value: 'customers', label: 'تقرير العملاء', icon: FileText }
+  ];
+
+  const generateReport = async () => {
+    setGenerating(true);
+
+    try {
+      const { data } = await api.post('/api/reports/generate', {
+        type: reportType,
+        dateRange
+      }, {
+        responseType: 'blob'
+      });
+
+      // Download PDF
+      const url = window.URL.createObjectURL(new Blob([data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${reportType}_report_${Date.now()}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (error) {
+      console.error('Error generating report:', error);
+      alert('فشل إنشاء التقرير');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  return (
+    <div className="p-6 space-y-6">
+      <h1 className="text-2xl font-bold">التقارير والإحصائيات</h1>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {reportTypes.map(type => (
+          <button
+            key={type.value}
+            onClick={() => setReportType(type.value)}
+            className={`p-6 border-2 rounded-lg flex flex-col items-center gap-3 transition ${
+              reportType === type.value
+                ? 'border-blue-500 bg-blue-50'
+                : 'border-gray-200 hover:border-blue-300'
+            }`}
+          >
+            <type.icon className="w-8 h-8 text-blue-600" />
+            <span className="font-medium">{type.label}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="bg-white border rounded-lg p-6 space-y-4">
+        <h2 className="text-lg font-semibold">فترة التقرير</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium mb-2">من تاريخ</label>
+            <input
+              type="date"
+              value={dateRange.from}
+              onChange={(e) => setDateRange(prev => ({ ...prev, from: e.target.value }))}
+              className="w-full border rounded-lg px-4 py-2"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-2">إلى تاريخ</label>
+            <input
+              type="date"
+              value={dateRange.to}
+              onChange={(e) => setDateRange(prev => ({ ...prev, to: e.target.value }))}
+              className="w-full border rounded-lg px-4 py-2"
+            />
+          </div>
+        </div>
+      </div>
+
+      <button
+        onClick={generateReport}
+        disabled={generating}
+        className="bg-blue-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-400 flex items-center gap-2"
+      >
+        <Download className="w-5 h-5" />
+        {generating ? 'جاري الإنشاء...' : 'إنشاء التقرير'}
+      </button>
+    </div>
+  );
+}
+```
+
+**Backend Endpoints:**
+
+```typescript
+// api/src/favorites/favorites.controller.ts
+import { Controller, Get, Post, Delete, Body, Param, Req, UseGuards } from '@nestjs/common';
+import { Roles } from '../auth/roles.decorator';
+import { RolesGuard } from '../auth/roles.guard';
+
+@Controller('favorites')
+@UseGuards(RolesGuard)
+export class FavoritesController {
+  
+  @Get()
+  @Roles('system_admin', 'office_admin', 'manager', 'staff')
+  async list(@Req() req: any) {
+    const userId = req.user.id;
+    return this.favoritesService.findByUser(userId);
+  }
+
+  @Post()
+  @Roles('system_admin', 'office_admin', 'manager', 'staff')
+  async add(@Req() req: any, @Body() dto: { property_id: string }) {
+    const userId = req.user.id;
+    return this.favoritesService.add(userId, dto.property_id);
+  }
+
+  @Delete(':id')
+  @Roles('system_admin', 'office_admin', 'manager', 'staff')
+  async remove(@Req() req: any, @Param('id') id: string) {
+    return this.favoritesService.remove(id);
+  }
+}
+```
+
+```typescript
+// api/src/reports/reports.controller.ts
+import { Controller, Post, Body, Req, Res, UseGuards } from '@nestjs/common';
+import { Response } from 'express';
+import { Roles } from '../auth/roles.decorator';
+import { RolesGuard } from '../auth/roles.guard';
+import { ReportsService } from './reports.service';
+
+@Controller('reports')
+@UseGuards(RolesGuard)
+export class ReportsController {
+  constructor(private readonly reportsService: ReportsService) {}
+
+  @Post('generate')
+  @Roles('system_admin', 'office_admin', 'manager', 'accountant')
+  async generateReport(
+    @Req() req: any,
+    @Body() dto: { type: string; dateRange: { from: string; to: string } },
+    @Res() res: Response
+  ) {
+    const officeId = req.user.office_id;
+
+    const pdfBuffer = await this.reportsService.generatePDF(officeId, dto.type, dto.dateRange);
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${dto.type}_report_${Date.now()}.pdf"`,
+      'Content-Length': pdfBuffer.length
+    });
+
+    res.send(pdfBuffer);
+  }
+}
+```
+
+---
+
+## الملاحظات الختامية للجزء الثالث
+
+**ملخص النقاط الرئيسية:**
+
+1. **Multi-Tenancy Architecture (4 Levels):**
+   - Database-Level: Row-Level Security (RLS) policies
+   - Application-Level: TenantInterceptor + Service-level `office_id` scoping
+   - Frontend: Zustand store with `office_id` validation
+   - File Storage: S3 paths with `office_id` prefix
+
+2. **RBAC Matrix (8 Roles):**
+   - Complete permission matrix for all modules
+   - Custom field-level permissions (JSONB)
+   - PermissionsGuard for granular access control
+   - Office Manager can manage users within their office only
+
+3. **حلول المشاكل الفنية:**
+   - ✅ Note #4: Property upload endpoint (`POST /api/properties/upload`)
+   - ✅ Note #5: Export with proper authentication
+   - ✅ Note #6: Import with fixed Select.Item values
+   - ✅ Note #8: Complete user management for Office Admins
+   - ✅ Note #9: Customers endpoint fixed (removed 'tags' validation)
+   - ✅ Note #10 & #11: Appointments with proper @Roles decorators
+   - ✅ Note #12: Toast dismiss button
+   - ✅ Note #13 & #14: Favorites & Reports pages created
+
+---
+
+**الخطوة التالية:**
+الانتقال إلى **الجزء الرابع: النظرة الفنية (PART IV: TECHNICAL VIEW)** الذي سيفصّل Backend Architecture, Frontend Architecture, Database Design, و Performance Optimization.
+
+---
+
+**تاريخ التحديث:** 19 نوفمبر 2025
+**الإصدار:** 3.0 - Part III
+**الحالة:** مكتمل ✓
+
+---
+
