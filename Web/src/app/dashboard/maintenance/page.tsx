@@ -7,11 +7,22 @@
  */
 
 import { useState } from 'react'
+import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
 import { Plus, Download, Filter } from 'lucide-react'
-import { MaintenanceStats } from '@/components/maintenance/MaintenanceStats'
-import { RequestsTable } from '@/components/maintenance/RequestsTable'
+import { TableLoadingSkeleton, ComponentLoadingSkeleton } from '@/components/ui/loading-skeleton'
 import type { MaintenanceRequest, MaintenanceStats as Stats } from '@/types/maintenance'
+
+// Dynamic imports for heavy components
+const MaintenanceStats = dynamic(
+  () => import('@/components/maintenance/MaintenanceStats').then(mod => ({ default: mod.MaintenanceStats })),
+  { ssr: false, loading: () => <ComponentLoadingSkeleton /> }
+)
+
+const RequestsTable = dynamic(
+  () => import('@/components/maintenance/RequestsTable').then(mod => ({ default: mod.RequestsTable })),
+  { ssr: false, loading: () => <TableLoadingSkeleton /> }
+)
 
 export default function MaintenancePage() {
   const [isLoading, setIsLoading] = useState(false)

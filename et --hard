@@ -1,0 +1,51 @@
+[33m5414079[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mdevelop[m[33m)[m HEAD@{0}: commit: 6
+[33m2d28edb[m[33m ([m[1;32mcursor/fix-missing-tsconfig-paths-module-for-superadmin-seed-ce2b[m[33m)[m HEAD@{1}: reset: moving to HEAD
+[33m2d28edb[m[33m ([m[1;32mcursor/fix-missing-tsconfig-paths-module-for-superadmin-seed-ce2b[m[33m)[m HEAD@{2}: checkout: moving from cursor/fix-missing-tsconfig-paths-module-for-superadmin-seed-ce2b to develop
+[33m2d28edb[m[33m ([m[1;32mcursor/fix-missing-tsconfig-paths-module-for-superadmin-seed-ce2b[m[33m)[m HEAD@{3}: checkout: moving from 3f005b046b8c82940899206a824a22f2eff6b4ae to cursor/fix-missing-tsconfig-paths-module-for-superadmin-seed-ce2b
+[33m3f005b0[m HEAD@{4}: pull --rebase origin cursor/fix-missing-tsconfig-paths-module-for-superadmin-seed-ce2b (pick): suba
+[33m5ae567b[m HEAD@{5}: pull --rebase origin cursor/fix-missing-tsconfig-paths-module-for-superadmin-seed-ce2b (pick): suba
+[33m0606cab[m HEAD@{6}: pull --rebase origin cursor/fix-missing-tsconfig-paths-module-for-superadmin-seed-ce2b (pick): env 4
+[33ma0835a7[m HEAD@{7}: pull --rebase origin cursor/fix-missing-tsconfig-paths-module-for-superadmin-seed-ce2b (pick): env
+[33mc1d0f5c[m HEAD@{8}: pull --rebase origin cursor/fix-missing-tsconfig-paths-module-for-superadmin-seed-ce2b (pick): 11:19 11/10
+[33m0e65014[m HEAD@{9}: pull --rebase origin cursor/fix-missing-tsconfig-paths-module-for-superadmin-seed-ce2b (pick): 10:58 11/10
+[33m8b48841[m[33m ([m[1;31morigin/cursor/fix-missing-tsconfig-paths-module-for-superadmin-seed-ce2b[m[33m)[m HEAD@{10}: pull --rebase origin cursor/fix-missing-tsconfig-paths-module-for-superadmin-seed-ce2b (start): checkout 8b4884144966fa7cd04648dae3c4319e355184e5
+[33m2d28edb[m[33m ([m[1;32mcursor/fix-missing-tsconfig-paths-module-for-superadmin-seed-ce2b[m[33m)[m HEAD@{11}: reset: moving to HEAD
+[33m2d28edb[m[33m ([m[1;32mcursor/fix-missing-tsconfig-paths-module-for-superadmin-seed-ce2b[m[33m)[m HEAD@{12}: checkout: moving from develop to cursor/fix-missing-tsconfig-paths-module-for-superadmin-seed-ce2b
+[33m2d28edb[m[33m ([m[1;32mcursor/fix-missing-tsconfig-paths-module-for-superadmin-seed-ce2b[m[33m)[m HEAD@{13}: commit: suba
+[33m14e65c3[m HEAD@{14}: commit: suba
+[33md99afac[m HEAD@{15}: commit: suba
+[33m92109ac[m HEAD@{16}: commit: env 4
+[33m807d5f4[m HEAD@{17}: commit: env
+[33m436ec47[m HEAD@{18}: pull --rebase origin develop (finish): returning to refs/heads/develop
+[33m436ec47[m HEAD@{19}: pull --rebase origin develop (pick): 11:19 11/10
+[33mf6dfea4[m HEAD@{20}: pull --rebase origin develop (pick): 10:58 11/10
+[33m83bdac0[m[33m ([m[1;31morigin/develop[m[33m)[m HEAD@{21}: pull --rebase origin develop (start): checkout 83bdac0a1b76462ad543c7d64a5eef3ae148abcf
+[33m017996d[m HEAD@{22}: reset: moving to HEAD
+[33m017996d[m HEAD@{23}: pull --rebase origin develop (finish): returning to refs/heads/develop
+[33m017996d[m HEAD@{24}: pull --rebase origin develop (pick): 11:19 11/10
+[33mcbf7e2b[m HEAD@{25}: pull --rebase origin develop (pick): 10:58 11/10
+[33m399bfbb[m HEAD@{26}: pull --rebase origin develop (start): checkout 399bfbb3116ebf439f9271aa105e278ee0623508
+[33m98fce8a[m HEAD@{27}: pull --rebase origin develop (finish): returning to refs/heads/develop
+[33m98fce8a[m HEAD@{28}: pull --rebase origin develop (pick): 11:19 11/10
+[33mfbf6561[m HEAD@{29}: pull --rebase origin develop (pick): 10:58 11/10
+[33mc3a989a[m HEAD@{30}: pull --rebase origin develop (start): checkout c3a989a4c5c95f65979d26eced31893c01025d80
+[33mf7dcaf8[m HEAD@{31}: commit: 11:19 11/10
+[33m319cc35[m HEAD@{32}: commit: 10:58 11/10
+[33m10317eb[m HEAD@{33}: reset: moving to origin/develop
+[33mfd4ca86[m HEAD@{34}: reset: moving to HEAD
+[33mfd4ca86[m HEAD@{35}: commit: 11/8B
+[33m9aaa12a[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mmain[m[33m)[m HEAD@{36}: checkout: moving from main to develop
+[33m9aaa12a[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mmain[m[33m)[m HEAD@{37}: merge develop: Fast-forward
+[33mb8b2351[m HEAD@{38}: checkout: moving from develop to main
+[33m9aaa12a[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mmain[m[33m)[m HEAD@{39}: merge main: Merge made by the 'ort' strategy.
+[33mb335f2b[m HEAD@{40}: checkout: moving from main to develop
+[33mb8b2351[m HEAD@{41}: checkout: moving from develop to main
+[33mb335f2b[m HEAD@{42}: commit: feat(web): Apply latest UI and script fixes
+[33mffd7201[m HEAD@{43}: commit: 11/8
+[33mb979f1d[m HEAD@{44}: commit: 11/8
+[33meb4529f[m[33m ([m[1;31morigin/fix/performance-tuning[m[33m)[m HEAD@{45}: checkout: moving from develop to develop
+[33meb4529f[m[33m ([m[1;31morigin/fix/performance-tuning[m[33m)[m HEAD@{46}: checkout: moving from develop to develop
+[33meb4529f[m[33m ([m[1;31morigin/fix/performance-tuning[m[33m)[m HEAD@{47}: checkout: moving from develop to develop
+[33meb4529f[m[33m ([m[1;31morigin/fix/performance-tuning[m[33m)[m HEAD@{48}: checkout: moving from develop to develop
+[33meb4529f[m[33m ([m[1;31morigin/fix/performance-tuning[m[33m)[m HEAD@{49}: checkout: moving from main to develop
+[33mb8b2351[m HEAD@{50}: clone: from https://github.com/majed05718/Website.git

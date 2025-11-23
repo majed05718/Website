@@ -8,6 +8,7 @@ import * as z from 'zod'
 import { toast } from 'sonner'
 import { Eye, EyeOff, Phone, Lock, Home } from 'lucide-react'
 import { useAuthStore } from '@/store/auth-store'
+import { authApi } from '@/lib/api/auth'
 
 const loginSchema = z.object({
   phone: z.string().regex(/^5[0-9]{8}$/, 'رقم الجوال يجب أن يبدأ بـ 5 ويتكون من 9 أرقام'),
@@ -32,31 +33,50 @@ export default function LoginPage() {
 
   const onSubmit = async (data: LoginForm) => {
     setIsLoading(true)
-    try {
-      // ⚠️ Development only - skip API validation
-const mockUser = {
-  id: '1-mock',
-  name: 'Majed Admin',
-  phone: '0500000000',
-  role: 'admin',
-  officeId: 'office-1',
-  email: 'mock.user@example.com', // <-- السطر المضاف
-};
+    const normalizeSaudiPhone = (p: string): string => {
+      // 1. أزل أي شيء ليس رقمًا
+      let cleaned = p.replace(/\D/g, '');
 
-      const mockToken = 'dev-token-' + Date.now()
-
-      // Save to Zustand store
-      setAuth(mockUser, mockToken)
-
-      // Save to cookie for middleware
-      if (typeof window !== 'undefined') {
-        document.cookie = `auth_token=${mockToken}; path=/; max-age=${60 * 60 * 24 * 7}` // 7 days
+      // 2. إذا كان يبدأ بـ 05، استبدل الصفر بـ 966
+      if (cleaned.startsWith('05')) {
+        return `+966${cleaned.substring(1)}`;
       }
 
-      toast.success('تم تسجيل الدخول بنجاح')
-      router.push('/dashboard')
-    } catch (error) {
-      toast.error('حدث خطأ في تسجيل الدخول')
+      // 3. إذا كان يبدأ بـ 5، افترض أنه رقم سعودي وأضف 966
+      if (cleaned.length === 9 && cleaned.startsWith('5')) {
+        return `+966${cleaned}`;
+      }
+
+      // 4. إذا كان يبدأ بـ 966، فهو بالفعل بالتنسيق الصحيح
+      if (cleaned.startsWith('+966')) {
+        return cleaned;
+      }
+
+      // إذا لم يتطابق مع أي حالة، أرجعه كما هو (قد يكون رقمًا دوليًا آخر)
+      return cleaned;
+    };
+    try {
+      // Call real login API
+      const response = await authApi.login({
+        phone: normalizeSaudiPhone(data.phone),
+        password: data.password,
+      })
+
+      // Save to Zustand store
+      setAuth(response.user, response.accessToken)
+
+      toast.success(response.message || 'تم تسجيل الدخول بنجاح');
+    setTimeout(() => {
+      window.location.href = '/dashboard';
+    }, 500); // تأخير بسيط لإعطاء فرصة لظهور التوست
+
+      // فقط قم بالتوجيه. الـ middleware سيسمح لك بالمرور الآن.
+     // router.push('/dashboard');
+    } catch (error: any) {
+      // Error handling is done by axios interceptor
+      // Just show a user-friendly message if needed
+      const errorMessage = error?.response?.data?.message || 'رقم الجوال أو كلمة المرور غير صحيحة'
+      toast.error(errorMessage)
     } finally {
       setIsLoading(false)
     }
@@ -75,9 +95,6 @@ const mockUser = {
           </h1>
           <p className="text-gray-600">
             مرحباً بك! سجل دخولك للمتابعة
-          </p>
-          <p className="text-sm text-orange-600 mt-2">
-            ⚠️ وضع التطوير: أدخل أي بيانات صحيحة
           </p>
         </div>
 

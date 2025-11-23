@@ -6,6 +6,7 @@ import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { SupabaseModule } from './supabase/supabase.module';
 import { HealthModule } from './health/health.module';
 import { PropertiesModule } from './properties/properties.module';
+import { AuthModule } from './auth/auth.module'; // <-- هل هو مستورد؟
 import { PaymentsModule } from './payments/payments.module';
 import { MaintenanceModule } from './maintenance/maintenance.module';
 import { WhatsAppModule } from './whatsapp/whatsapp.module';
@@ -17,12 +18,18 @@ import { RateLimitGuard } from './common/guards/rate-limit.guard';
 import { ActivityLogInterceptor } from './common/interceptors/activity-log.interceptor';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { JwtMiddleware } from './auth/jwt.middleware';
+import configuration from './config/configuration';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '.env',
+      load: [configuration],
+      envFilePath: [
+        `.env.${process.env.NODE_ENV || 'development'}`,
+        '.env',
+      ],
+      cache: true,
     }),
     // إعداد Throttler بثلاثة ملفات تعريف: افتراضي 1000، عام 100، مصدق 20 في الدقيقة
     ThrottlerModule.forRoot([
@@ -65,6 +72,7 @@ import { JwtMiddleware } from './auth/jwt.middleware';
     AnalyticsModule,
     CustomersModule,
     AppointmentsModule,
+    AuthModule, // <-- ✅ يجب أن يكون AuthModule هنا
   ],
   providers: [
     { provide: APP_GUARD, useClass: RateLimitGuard },
@@ -72,12 +80,13 @@ import { JwtMiddleware } from './auth/jwt.middleware';
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },
   ],
 })
-export class AppModule implements NestModule {
+
+export class AppModule{/* implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     // تطبيق وسيط JWT على جميع المسارات باستثناء /health
     consumer
       .apply(JwtMiddleware)
       .exclude({ path: 'health', method: RequestMethod.ALL })
       .forRoutes({ path: '*', method: RequestMethod.ALL });
-  }
+  }*/
 }

@@ -7,8 +7,17 @@ import { Header } from '@/components/dashboard/Header'
 import { Sidebar } from '@/components/dashboard/Sidebar'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Building2, Calendar, CheckCircle, Users, TrendingUp, TrendingDown } from 'lucide-react'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { Building2, Calendar, CheckCircle, Users, TrendingUp, TrendingDown, Loader2 } from 'lucide-react'
+import dynamic from 'next/dynamic'
+
+const SalesChart = dynamic(() => import('@/components/dashboard/SalesChart'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-[300px] items-center justify-center">
+      <Loader2 className="h-6 w-6 animate-spin text-[#0066CC]" />
+    </div>
+  ),
+})
 
 // Mock data
 const statsData = [
@@ -119,46 +128,38 @@ export default function DashboardPage() {
             })}
           </div>
 
-          {/* Charts Row */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-            {/* Sales Chart */}
-            <Card className="lg:col-span-2">
-              <CardHeader>
-                <CardTitle>المبيعات الشهرية</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
-                    <Line type="monotone" dataKey="مبيعات" stroke="#0066CC" strokeWidth={2} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
+            {/* Charts Row */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+              {/* Sales Chart */}
+              <Card className="lg:col-span-2">
+                <CardHeader>
+                  <CardTitle>المبيعات الشهرية</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <SalesChart data={chartData} dataKey="مبيعات" stroke="#0066CC" />
+                </CardContent>
+              </Card>
 
-            {/* Recent Activities */}
-            <Card>
-              <CardHeader>
-                <CardTitle>أحدث الأنشطة</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {[1, 2, 3, 4].map((i) => (
-                    <div key={i} className="flex items-start gap-3">
-                      <div className="w-2 h-2 rounded-full bg-blue-600 mt-2" />
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">معاينة عقار جديدة</p>
-                        <p className="text-xs text-gray-500">منذ {i} ساعات</p>
+              {/* Recent Activities */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>أحدث الأنشطة</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {[1, 2, 3, 4].map((i) => (
+                      <div key={i} className="flex items-start gap-3">
+                        <div className="w-2 h-2 rounded-full bg-blue-600 mt-2" />
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">معاينة عقار جديدة</p>
+                          <p className="text-xs text-gray-500">منذ {i} ساعات</p>
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
 
           {/* Recent Properties Table */}
           <Card>
