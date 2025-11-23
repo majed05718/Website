@@ -33,18 +33,45 @@ export default function LoginPage() {
 
   const onSubmit = async (data: LoginForm) => {
     setIsLoading(true)
+    const normalizeSaudiPhone = (p: string): string => {
+      // 1. أزل أي شيء ليس رقمًا
+      let cleaned = p.replace(/\D/g, '');
+
+      // 2. إذا كان يبدأ بـ 05، استبدل الصفر بـ 966
+      if (cleaned.startsWith('05')) {
+        return `+966${cleaned.substring(1)}`;
+      }
+
+      // 3. إذا كان يبدأ بـ 5، افترض أنه رقم سعودي وأضف 966
+      if (cleaned.length === 9 && cleaned.startsWith('5')) {
+        return `+966${cleaned}`;
+      }
+
+      // 4. إذا كان يبدأ بـ 966، فهو بالفعل بالتنسيق الصحيح
+      if (cleaned.startsWith('+966')) {
+        return cleaned;
+      }
+
+      // إذا لم يتطابق مع أي حالة، أرجعه كما هو (قد يكون رقمًا دوليًا آخر)
+      return cleaned;
+    };
     try {
       // Call real login API
       const response = await authApi.login({
-        phone: data.phone,
+        phone: normalizeSaudiPhone(data.phone),
         password: data.password,
       })
 
       // Save to Zustand store
       setAuth(response.user, response.accessToken)
 
-      toast.success(response.message || 'تم تسجيل الدخول بنجاح')
-      router.push('/dashboard')
+      toast.success(response.message || 'تم تسجيل الدخول بنجاح');
+    setTimeout(() => {
+      window.location.href = '/dashboard';
+    }, 500); // تأخير بسيط لإعطاء فرصة لظهور التوست
+
+      // فقط قم بالتوجيه. الـ middleware سيسمح لك بالمرور الآن.
+     // router.push('/dashboard');
     } catch (error: any) {
       // Error handling is done by axios interceptor
       // Just show a user-friendly message if needed

@@ -6,6 +6,7 @@ import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
 import * as compression from 'compression';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
+import * as cookieParser from 'cookie-parser'; // <-- استيراد جديد
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -63,6 +64,7 @@ async function bootstrap() {
     exposedHeaders: ['Content-Range', 'X-Content-Range'],
     maxAge: 86400, // 24 hours
   });
+  app.use(cookieParser());
 
   // Global API prefix
   app.setGlobalPrefix('api');

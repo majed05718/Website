@@ -7,7 +7,7 @@ module.exports = {
       instances: 1,
       env: {
         NODE_ENV: 'production',  // ✅ قيمة قياسية
-        PORT: 3031,
+        PORT: 80,
       },
       error_file: '/var/log/pm2/backend-error.log',
       out_file: '/var/log/pm2/backend-out.log',

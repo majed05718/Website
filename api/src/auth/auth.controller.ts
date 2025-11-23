@@ -36,12 +36,14 @@ export class AuthController {
   @Public() // Exempt from global JWT guard
   @UseGuards(AuthGuard('local')) // <-- هذا هو السلك الحاسم الذي يربط كل شيء!
   @Post('login')
-  @HttpCode(HttpStatus.OK)
+  //@HttpCode(HttpStatus.OK)
   async login(
     @Body() loginDto: LoginDto,
     @Req() req: Request,
-    @Res({ passthrough: true }) res: Response,
+    @Res(/*{ passthrough: true }*/) res: Response,
   ) {
+      try {
+
     // 1. Validate user credentials
     const user = await this.authService.validateUser(loginDto.phone, loginDto.password);
     
@@ -61,14 +63,15 @@ export class AuthController {
     const isProduction = this.configService.get<string>('app.nodeEnv') === 'production';
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
-      secure: isProduction, // HTTPS only in production
+      secure: false, // HTTPS only in production
       sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      maxAge: 60 * 60 * 24 * 7, // 7 days
       path: '/',
     });
     
     // 4. Return access token and user info
-    return {
+    // 2. أرسل استجابة النجاح وأغلق الطلب
+    res.status(HttpStatus.OK).json({
       success: true,
       accessToken,
       user: {
@@ -80,7 +83,14 @@ export class AuthController {
         officeId: user.office_id,
       },
       message: 'تم تسجيل الدخول بنجاح',
-    };
+    });
+  } catch (error) {
+    // في حالة حدوث خطأ غير متوقع، تأكد من إرسال استجابة
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: 'حدث خطأ داخلي أثناء تسجيل الدخول',
+    });
+  }
   }
 
   /**
@@ -110,7 +120,7 @@ export class AuthController {
     const isProduction = this.configService.get<string>('app.nodeEnv') === 'production';
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
-      secure: isProduction,
+      secure: false,
       sameSite: 'strict',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       path: '/',
@@ -151,7 +161,7 @@ export class AuthController {
     const isProduction = this.configService.get<string>('app.nodeEnv') === 'production';
     res.clearCookie('refreshToken', {
       httpOnly: true,
-      secure: isProduction,
+      secure: false,
       sameSite: 'strict',
       path: '/',
     });

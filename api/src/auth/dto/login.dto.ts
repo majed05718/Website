@@ -1,7 +1,9 @@
 import { IsNotEmpty, IsString, MinLength, Matches } from 'class-validator';
 
 export class LoginDto {
-  @Matches(/^5[0-9]{8}$/, { message: 'رقم الجوال يجب أن يبدأ بـ 5 ويتكون من 9 أرقام' })
+  @Matches(/^(\+?9665\d{8}|05\d{8}|5\d{8})$/, {
+    message: 'رقم الجوال يجب أن يكون بالصيغة السعودية الصحيحة (إما 9 أرقام تبدأ بـ 5، أو 12 رقمًا تبدأ بـ 9665)',
+ })
   @IsNotEmpty({ message: 'رقم الجوال مطلوب' })
   phone: string;
 

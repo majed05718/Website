@@ -29,13 +29,21 @@ const SERVER_IP = '64.227.166.229'; // Your server IP
 
 const URLS = {
   PRODUCTION: {
+    API_BASE: `/api`,
+    FRONTEND_BASE: `http://${SERVER_IP}:${PORTS.PRODUCTION.FRONTEND}`,
+  },
+  STAGING: {
+    API_BASE: `/api`,
+    FRONTEND_BASE: `http://localhost:${PORTS.STAGING.FRONTEND}`,
+  }
+  /*PRODUCTION: {
     API_BASE: `http://${SERVER_IP}:${PORTS.PRODUCTION.API}`,
     FRONTEND_BASE: `http://${SERVER_IP}:${PORTS.PRODUCTION.FRONTEND}`,
   },
   STAGING: {
     API_BASE: `http://localhost:${PORTS.STAGING.API}`,
     FRONTEND_BASE: `http://localhost:${PORTS.STAGING.FRONTEND}`,
-  }
+  }*/
 };
 
 // ═══════════════════════════════════════════════════════════════════════

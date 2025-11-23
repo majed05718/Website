@@ -29,7 +29,9 @@ export class AuthService {
    */
   async validateUser(phone: string, password: string): Promise<any> {
     const supabase = this.supabaseService.getClient();
-    
+  console.log('--- AuthService.validateUser ---');
+  console.log(`[1] محاولة التحقق من صحة رقم الجوال: ${phone}`);
+
     // Find user by phone in user_permissions table
     const { data: user, error } = await supabase
       .from('user_permissions')
@@ -37,21 +39,33 @@ export class AuthService {
       .eq('phone', phone)
       .single();
 
+    console.log('[2] نتيجة استعلام Supabase (المستخدم):', user);
+
     if (error || !user) {
+      console.log('[3] فشل: لم يتم العثور على المستخدم أو حدث خطأ. إرجاع null.');
       return null;
     }
 
     // Check if user is active (using is_active field)
     if (!user.is_active) {
+      console.log(`[3] فشل: حساب المستخدم ${user.email} غير نشط.`);
       throw new UnauthorizedException('حساب المستخدم غير نشط');
     }
 
+  console.log(`[3] نجاح: تم العثور على المستخدم. ID: ${user.id}`);
+  console.log(`   --> كلمة المرور المستلمة: "${password}"`);
+  console.log(`   --> الهاش المخزن في قاعدة البيانات: "${user.password_hash}"`);
     // Compare password with bcrypt hash
     const isPasswordValid = await bcrypt.compare(password, user.password_hash);
     
+      console.log('[4] نتيجة مقارنة bcrypt:', isPasswordValid);
+
     if (!isPasswordValid) {
+    console.log('[5] فشل: كلمة المرور غير متطابقة. إرجاع null.');
+
       return null;
     }
+  console.log('[5] نجاح: كلمة المرور متطابقة.');
 
     // Return user without password field
     const { password_hash, ...result } = user;
